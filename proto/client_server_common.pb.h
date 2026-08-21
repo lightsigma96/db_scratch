@@ -31,6 +31,7 @@
 #include "google/protobuf/extension_set.h"  // IWYU pragma: export
 #include "google/protobuf/generated_enum_reflection.h"
 #include "google/protobuf/unknown_field_set.h"
+#include <sys/socket.h>
 // @@protoc_insertion_point(includes)
 
 // Must be included last.
@@ -55,6 +56,24 @@ extern "C" {
 extern const ::google::protobuf::internal::DescriptorTable descriptor_table_client_5fserver_5fcommon_2eproto;
 }  // extern "C"
 namespace client_server_common {
+constexpr char   unix_server_path[]  = "/tmp/db_scratch.sock";
+inline int getUnixSocket() {
+    struct sockaddr addr = {.sa_family = AF_UNIX, .sa_data = ""};
+
+    int fd;
+    if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+        printf("ERROR : socket");
+        exit(1);
+    };
+
+    strncpy(addr.sa_data, unix_server_path, sizeof(addr.sa_data));
+    if (bind(fd, &addr, sizeof(addr.sa_family) + sizeof(unix_server_path)) <
+        0) {
+        printf("ERROR : socket");
+        exit(1);
+    } // look out
+    return fd;
+}
 enum RESPONSE_TYPE : int;
 extern const uint32_t RESPONSE_TYPE_internal_data_[];
 enum SUPPORTED_COLUMN_TYPE : int;
@@ -2809,4 +2828,4 @@ inline const EnumDescriptor* PROTOBUF_NONNULL GetEnumDescriptor<::client_server_
 #include "google/protobuf/port_undef.inc"
 // clang-format on
 
-#endif  // client_5fserver_5fcommon_2eproto_2epb_2eh
+#endif // client_5fserver_5fcommon_2eproto_2epb_2eh

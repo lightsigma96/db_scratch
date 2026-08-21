@@ -1,9 +1,11 @@
-#include "client_server_common.hpp"
+#include "proto/client_server_common.pb.h"
 #include "src/catalog_manager/headers/schmea_manager.hpp"
 #include "src/query_manager/headers/parser.hpp"
 #include "src/query_manager/headers/planner.hpp"
 #include <cstddef>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -11,63 +13,167 @@
 #include <stdexcept>
 #include <string>
 #include <sys/poll.h>
+#include <sys/socket.h>
 #include <termios.h>
-#include <unistd.h>
 #include <variant>
 
-constexpr size_t MAX_CLIENTS = 10;
+constexpr size_t MAX_CLIENTS         = 10;
+constexpr size_t MAX_CLIENT_MSG_SIZE = 4096;
+
+// --- AI GENERATED HELPER FUNCTIONS (MAYBE CAN IMPROVE) ---
+void fill_proto_schemas(client_server_common::Response         &response,
+                        const std::vector<schema::schema_attr> &schemas) {
+
+    for (const auto &schema : schemas) {
+        auto *proto_schema = response.add_schemas();
+
+        proto_schema->set_schema_name(schema.schema_name);
+
+        for (const auto &table : schema.tables) {
+            auto *proto_table = proto_schema->add_tables();
+
+            proto_table->set_size(table.columns.size());
+            proto_table->set_page_id(table.page_id);
+            proto_table->set_table_name(table.table_name);
+
+            for (const auto &column : table.columns) {
+                auto *proto_column = proto_table->add_columns();
+
+                proto_column->set_column_name(column.column_name);
+
+                switch (column.column_type) {
+                    case access_methods_types::STRING:
+                        proto_column->set_column_type(
+                            client_server_common::STRING);
+                        break;
+
+                    case access_methods_types::INTEGER:
+                        proto_column->set_column_type(
+                            client_server_common::INTEGER);
+                        break;
+
+                    case access_methods_types::FLOATING:
+                        proto_column->set_column_type(
+                            client_server_common::FLOAT);
+                        break;
+
+                    default:
+                        proto_column->set_column_type(
+                            client_server_common::UNKNOWN_COLUMN_TYPE);
+                        break;
+                }
+            }
+        }
+    }
+}
+void fill_proto_results(
+    client_server_common::Response                 &response,
+    const std::vector<access_methods_types::row_t> &results) {
+
+    for (const auto &row : results) {
+        auto *proto_row = response.add_results();
+
+        for (const auto &value : row.row) {
+            auto *proto_value = proto_row->add_values();
+
+            std::visit(
+                [&](const auto &val) {
+                    using T = std::decay_t<decltype(val)>;
+
+                    if constexpr (std::is_same_v<T, std::string>) {
+                        proto_value->set_string_value(val);
+
+                    } else if constexpr (std::is_same_v<T, int>) {
+                        proto_value->set_int_value(val);
+
+                    } else if constexpr (std::is_same_v<T, float>) {
+                        proto_value->set_float_value(val);
+                    }
+                },
+                value);
+        }
+    }
+}
 
 client_server_common::Response
-DB_Pipeline(std::string schema_name, schema::schema_manager &sch_ma,
-            parser::Parser &parser, buffer_manager::buffer_pool &buff_pool,
+DB_Pipeline(schema::schema_manager &sch_ma, parser::Parser &parser,
+            buffer_manager::buffer_pool    &buff_pool,
             access_methods::Access_methods &access_methods,
-            client_server_common::Request &input, bool first_load) {
+            client_server_common::Request  &input) {
 
-    client_server_common::Response response_obj = {};
-    index_write::root_struct       curr_root    = {};
+    client_server_common::Response response_obj;
+    index_write::root_struct       curr_root = {};
 
-    if (first_load) {
-        response_obj.query_type = client_server_common::FIRST_LOAD;
-        response_obj.schemas.emplace();
-        sch_ma.get_schema(response_obj.schemas.value());
+    if (input.first_load()) {
+        response_obj.set_query_type(client_server_common::FIRST_LOAD);
+
+        std::vector<schema::schema_attr> schemas;
+        sch_ma.get_schema(schemas);
+
+        fill_proto_schemas(response_obj, schemas);
+        input.set_first_load(false);
+
         return response_obj;
     }
 
-    parser::token_iterator  tok_it(input);
+    parser::token_iterator tok_it(input.input());
+
     parser_types::ASTResult ast =
-        parser.grammer_check(tok_it, sch_ma, schema_name);
+        parser.grammer_check(tok_it, sch_ma, input.schema_name());
 
     if (parser_types::SCHEMA_AST *sch_ptr =
             std::get_if<parser_types::SCHEMA_AST>(&ast)) {
+
         sch_ma.create_schema(*sch_ptr);
-        response_obj.query_type = client_server_common::CREATE_SCHEMA_QUERY;
-        response_obj.schemas.emplace();
-        sch_ma.get_schema(response_obj.schemas.value());
+
+        response_obj.set_query_type(client_server_common::CREATE_SCHEMA_QUERY);
+
+        std::vector<schema::schema_attr> schemas;
+        sch_ma.get_schema(schemas);
+
+        fill_proto_schemas(response_obj, schemas);
 
     } else if (parser_types::CREATE_TABLE_AST *ct_ast =
                    std::get_if<parser_types::CREATE_TABLE_AST>(&ast)) {
-        if (schema_name != "") {
-            sch_ma.schema_create_table(schema_name, *ct_ast);
-            response_obj.query_type = client_server_common::CREATE_TABLE_QUERY;
-            response_obj.schemas.emplace();
-            sch_ma.get_schema(response_obj.schemas.value());
+
+        if (input.schema_name() != "") {
+            sch_ma.schema_create_table(input.schema_name(), *ct_ast);
+
+            response_obj.set_query_type(
+                client_server_common::CREATE_TABLE_QUERY);
+
+            std::vector<schema::schema_attr> schemas;
+            sch_ma.get_schema(schemas);
+
+            fill_proto_schemas(response_obj, schemas);
         }
+
     } else if (parser_types::INSERT_AST *insert_ast =
                    std::get_if<parser_types::INSERT_AST>(&ast)) {
-        if (schema_name != "") {
+
+        if (input.schema_name() != "") {
             planner::insert_plan(buff_pool, access_methods, sch_ma, *insert_ast,
-                                 curr_root, schema_name);
-            response_obj.query_type = client_server_common::INSERT_QUERY;
+                                 curr_root, input.schema_name());
+
+            response_obj.set_query_type(client_server_common::INSERT_QUERY);
         }
 
     } else if (parser_types::SELECT_AST *select_ast =
                    std::get_if<parser_types::SELECT_AST>(&ast)) {
-        if (schema_name != "") {
-            response_obj.query_type = client_server_common::SELECT_QUERY;
-            response_obj.results    = planner::select_plan(
-                buff_pool, access_methods, sch_ma, *select_ast, schema_name);
-            response_obj.schemas.emplace();
-            sch_ma.get_schema(response_obj.schemas.value());
+
+        if (input.schema_name() != "") {
+            response_obj.set_query_type(client_server_common::SELECT_QUERY);
+
+            auto results =
+                planner::select_plan(buff_pool, access_methods, sch_ma,
+                                     *select_ast, input.schema_name());
+
+            fill_proto_results(response_obj, results);
+
+            std::vector<schema::schema_attr> schemas;
+            sch_ma.get_schema(schemas);
+
+            fill_proto_schemas(response_obj, schemas);
         }
     }
 
@@ -97,25 +203,44 @@ int main() {
     schema::schema_manager         sch_ma(schema_filepath);
     parser::Parser                 parser;
 
-    struct pollfd stdin_poll = {STDIN_FILENO, POLLIN, 0};
+    int listen_fd = client_server_common::getUnixSocket();
 
-    // can later have more (note this contains pointers to structs of pollfd)
-
+    listen(listen_fd, MAX_CLIENTS);
+    // change poll with epoll
     struct pollfd poll_table[MAX_CLIENTS];
-    poll_table[0] = stdin_poll;
+    poll_table[0].fd     = listen_fd;
+    poll_table[0].events = POLLIN;
 
+    size_t nfds = 1;
+
+    client_server_common::Request client_req;
     while (1) {
-        int ready_fds = poll(poll_table, MAX_CLIENTS, 16);
+        int ready_fds = poll(poll_table, nfds, 16);
 
         if (ready_fds > 0) {
 
-            for (int fd = 0; fd < MAX_CLIENTS; fd++) {
-                if (poll_table[fd].revents & POLLIN) {
+            for (int fd = 0; fd < nfds; fd++) {
+                if (fd == 0 && poll_table[fd].revents & POLLIN) {
+                    int new_client_fd       = accept(listen_fd, NULL, NULL);
+                    poll_table[nfds].fd     = new_client_fd;
+                    poll_table[nfds].events = POLLIN;
+                    nfds++;
+                } else {
+                    // read here
+                    char   client_msg[MAX_CLIENT_MSG_SIZE];
+                    size_t bytes_read = 0;
+                    while ((bytes_read +=
+                            recv(fd, client_msg + bytes_read,
+                                 MAX_CLIENT_MSG_SIZE - bytes_read, 0)) > 1 &&
+                           bytes_read < MAX_CLIENT_MSG_SIZE) {
+                    }
+                    if (!client_req.ParseFromString(client_msg)) {
+                        printf("ERROR : Parsing Client Message");
+                    }
 
                     // thread here
-                    DB_Pipeline(std::string schema_name, sch_ma, parser,
-                                buff_pool, access_methods, Request & input,
-                                bool first_load);
+                    DB_Pipeline(sch_ma, parser, buff_pool, access_methods,
+                                client_req);
                 }
             }
         } else if (ready_fds < 0) {

@@ -1,21 +1,20 @@
-#include "client_server_common.hpp"
 #include "proto/client_server_common.pb.h"
 #include "tui/headers/components.hpp"
 #include "tui/headers/input_handler.hpp"
-#include <type_traits>
+#include <cstdio>
+#include <string>
+#include <sys/socket.h>
+
+constexpr size_t MAX_PAYLOAD_SIZE = 2048;
 
 void TUI_Pipeline(Structure &st, client_server_common::Request &request,
                   bool first_load) {
 
     std::string_view input = request.input();
-    // input.text_box_input = input_text;
 
     for (std::unique_ptr<TextBox> &textbox : st.textbox) {
         if (textbox->component_id == "query_input") {
-            input =
-                textbox
-                    ->get_inner_text(); // even if obj is destroyed we fulfilled
-                                        // our purpose with this string
+            input = textbox->get_inner_text();
             break;
         }
     }
@@ -23,92 +22,173 @@ void TUI_Pipeline(Structure &st, client_server_common::Request &request,
     std::string curr_active_schema = "";
     for (std::unique_ptr<Accordion> &ac : st.accordion) {
         if (ac->component_id == "schema_display" && ac->entry.size() != 0) {
+
             curr_active_schema = ac->entry[ac->which_selected].name;
+
             break;
         }
     }
 
-    // replace here with TCP connection talking
+    request.set_input(input);
+    request.set_schema_name(curr_active_schema);
+    request.set_first_load(first_load);
 
-    client_server_common::Response res =
-        DB_Pipeline(curr_active_schema, input, first_load);
+    std::string payload;
+
+    if (!request.SerializeToString(&payload)) {
+        printf("ERROR : Serialization");
+    }
+
+    size_t payload_size = payload.size();
+
+    char final_payload[MAX_PAYLOAD_SIZE];
+
+    snprintf(final_payload, MAX_PAYLOAD_SIZE, "%zu%s", payload_size,
+             payload.c_str());
+
+    int sock_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+
+    if (sock_fd < 0) {
+        perror("socket");
+        return;
+    }
+
+    struct sockaddr_un addr{};
+    addr.sun_family = AF_UNIX;
+    strncpy(addr.sun_path, unix_server_path, sizeof(addr.sun_path) - 1);
+
+    if (connect(sock_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        perror("connect");
+        close(sock_fd);
+        return;
+    }
+
+    size_t sent = 0;
+
+    while (sent < payload.size()) {
+        ssize_t n =
+            send(sock_fd, payload.data() + sent, payload.size() - sent, 0);
+
+        if (n <= 0) {
+            perror("send");
+            close(sock_fd);
+            return;
+        }
+
+        sent += n;
+    }
+
+    // receive response
+    char   response_buf[MAX_PAYLOAD_SIZE];
+    size_t received = 0;
+
+    while (received < MAX_PAYLOAD_SIZE) {
+        ssize_t n = recv(sock_fd, response_buf + received,
+                         MAX_PAYLOAD_SIZE - received, 0);
+
+        if (n <= 0)
+            break;
+
+        received += n;
+    }
+
+    close(sock_fd);
+
+    client_server_common::Response res;
+
+    if (!res.ParseFromArray(response_buf, received)) {
+        printf("ERROR : Deserialization");
+        return;
+    }
 
     int accord_idx = 0;
 
-    if (res.schemas.has_value()) {
-        for (accord_idx = 0; accord_idx < st.accordion.size(); accord_idx++) {
-            if (st.accordion[accord_idx]->component_id == "schema_display") {
-                for (int i = 0; i < res.schemas.value().size(); i++) {
-                    st.accordion[accord_idx]->fill_entry(
-                        res.schemas.value()[i].schema_name, i);
-                    for (int j = 0; j < res.schemas.value()[i].tables.size();
-                         j++) {
-                        st.accordion[accord_idx]->fill_childs(
-                            res.schemas.value()[i].tables[j].table_name, i);
-                    }
+    for (; accord_idx < st.accordion.size(); accord_idx++) {
+
+        if (st.accordion[accord_idx]->component_id == "schema_display") {
+
+            const auto &res_schemas = res.schemas();
+
+            for (int i = 0; i < res_schemas.size(); i++) {
+
+                const auto &r = res_schemas.Get(i);
+
+                st.accordion[accord_idx]->fill_entry(r.schema_name(), i);
+
+                for (int j = 0; j < r.tables().size(); j++) {
+
+                    const auto &t = r.tables().Get(j);
+
+                    st.accordion[accord_idx]->fill_childs(t.table_name(), i);
                 }
-                break;
             }
+
+            break;
         }
     }
 
-    if (res.results.has_value()) {
+    if (res.results_size() > 0) {
+
         int table_idx = 0;
+
         for (int i = 0; i < st.table.size(); i++) {
+
             if (st.table[i]->component_id == "display_table") {
-                st.table[i]->divisions = res.results.value().size();
-                table_idx              = i;
+                table_idx = i;
                 break;
             }
         }
+
         int parent_selected = st.accordion[accord_idx]->which_selected;
+
         int child_selected =
             st.accordion[accord_idx]->entry[parent_selected].sub_child_selected;
 
-        // remember to resize according to res.results (number of col) after
-        // setting divisions
-        st.table[table_idx]->divisions = res.schemas.value()[parent_selected]
-                                             .tables[child_selected]
-                                             .columns.size();
-        int num_cols                   = res.schemas.value()[parent_selected]
-                                             .tables[child_selected]
-                                             .columns.size();
+        const auto &table = res.schemas(parent_selected).tables(child_selected);
+
+        int num_cols = table.columns_size();
+
+        st.table[table_idx]->divisions = num_cols;
+
         st.table[table_idx]->rows.assign(
-            res.results.value().size(),
-            std::vector<std::string>(num_cols, " "));
+            res.results_size(), std::vector<std::string>(num_cols, " "));
+
         st.table[table_idx]->headers.assign(num_cols, " ");
 
-        int h = 0;
+        for (int h = 0; h < table.columns_size(); h++) {
 
-        for (h = 0; h < res.schemas.value()[parent_selected]
-                            .tables[child_selected]
-                            .columns.size();
-             h++) {
-            st.table[table_idx]->fill_headers(
-                res.schemas.value()[parent_selected]
-                    .tables[child_selected]
-                    .columns[h]
-                    .column_name,
-                h);
+            st.table[table_idx]->fill_headers(table.columns(h).column_name(),
+                                              h);
         }
 
-        for (int r = 0; r < res.results.value().size(); r++) {
-            for (int v = 0; v < res.results.value()[r].row.size(); v++) {
-                std::visit(
-                    [&](auto &&val) {
-                        using T = std::decay_t<decltype(val)>;
+        for (int r = 0; r < res.results_size(); r++) {
 
-                        if constexpr (std::is_same_v<int, T>) {
-                            st.table[table_idx]->fill_rows(std::to_string(val),
-                                                           r, v);
-                        } else if constexpr (std::is_same_v<std::string, T>) {
-                            st.table[table_idx]->fill_rows(val, r, v);
-                        } else if constexpr (std::is_same_v<float, T>) {
-                            st.table[table_idx]->fill_rows(std::to_string(val),
-                                                           r, v);
-                        }
-                    },
-                    (res.results.value()[r].row[v]));
+            const auto &row = res.results(r);
+
+            for (int v = 0; v < row.values_size(); v++) {
+
+                const auto &value = row.values(v);
+
+                switch (value.value_case()) {
+
+                    case client_server_common::Value::kIntValue:
+                        st.table[table_idx]->fill_rows(
+                            std::to_string(value.int_value()), r, v);
+                        break;
+
+                    case client_server_common::Value::kStringValue:
+                        st.table[table_idx]->fill_rows(value.string_value(), r,
+                                                       v);
+                        break;
+
+                    case client_server_common::Value::kFloatValue:
+                        st.table[table_idx]->fill_rows(
+                            std::to_string(value.float_value()), r, v);
+                        break;
+
+                    case client_server_common::Value::VALUE_NOT_SET:
+                        break;
+                }
             }
         }
     }
@@ -158,9 +238,9 @@ int main() {
     write(STDOUT_FILENO, "\033[?25l", 6);
     write(STDOUT_FILENO, "\033[2J\033[H", 7);
 
-    client_server_common::OnWire onwire_proto;
+    client_server_common::Request request;
 
-    TUI_Pipeline(st, onwire_proto, true);
+    TUI_Pipeline(st, request, true);
     while (1) {
 
         screen.reset_region(1, 1, screen.max_cols - 1, screen.max_rows - 1, {});
@@ -175,7 +255,7 @@ int main() {
         input_handler.read(in, events);
 
         if (events.SUBMIT) {
-            TUI_Pipeline(st, onwire_proto, false);
+            TUI_Pipeline(st, request, false);
         }
 
         st.draw_structure();
