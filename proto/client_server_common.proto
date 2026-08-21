@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+package client_server_common;
+
+//client request
+message Request {
+  string schema_name = 1;
+  string input = 2;
+  bool first_load = 3;
+}
+
+
+//database response
+
+// ─────────────────────────────────────────────
+// Response
+// ─────────────────────────────────────────────
+
+enum RESPONSE_TYPE {
+    UNKNOWN = 0;
+    FIRST_LOAD = 1;
+    SELECT_QUERY = 2;
+    INSERT_QUERY = 3;
+    CREATE_TABLE_QUERY = 4;
+    CREATE_SCHEMA_QUERY = 5;
+}
+
+// ─────────────────────────────────────────────
+// Row / Value
+// ─────────────────────────────────────────────
+
+message Value {
+    oneof value {
+        string string_value = 1;
+        int64 int_value = 2;
+        float float_value = 3;
+    }
+}
+
+message Row {
+    repeated Value values = 1;
+}
+
+// ─────────────────────────────────────────────
+// Schema
+// ─────────────────────────────────────────────
+
+enum SUPPORTED_COLUMN_TYPE {
+    UNKNOWN_COLUMN_TYPE = 0;
+    STRING = 1;
+    INTEGER = 2;
+    FLOAT = 3;
+}
+
+message ColAttr {
+    string column_name = 1;
+    SUPPORTED_COLUMN_TYPE column_type = 2;
+}
+
+message TablesAttrs {
+    uint64 size = 1;
+    uint64 page_id = 2;
+    string table_name = 3;
+    repeated ColAttr columns = 4;
+}
+
+message SchemaAttr {
+    string schema_name = 1;
+    repeated TablesAttrs tables = 2;
+}
+
+// ─────────────────────────────────────────────
+// Database Response
+// ─────────────────────────────────────────────
+
+message Response {
+    RESPONSE_TYPE query_type = 1;
+
+    repeated Row results = 2;
+    repeated SchemaAttr schemas = 3;
+}
+
