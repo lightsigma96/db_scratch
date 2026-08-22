@@ -1,11 +1,48 @@
 #include "proto/client_server_common.pb.h"
 #include "tui/headers/components.hpp"
 #include "tui/headers/input_handler.hpp"
+#include <arpa/inet.h>
 #include <cstdio>
+#include <cstring>
 #include <string>
 #include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
 
 constexpr size_t MAX_PAYLOAD_SIZE = 2048;
+constexpr char   unix_server_path[] = "/tmp/db_scratch.sock";
+
+static bool send_all(int fd, const void *data, size_t size) {
+    const char *buffer = static_cast<const char *>(data);
+    size_t sent = 0;
+
+    while (sent < size) {
+        ssize_t n = send(fd, buffer + sent, size - sent, 0);
+
+        if (n <= 0)
+            return false;
+
+        sent += n;
+    }
+
+    return true;
+}
+
+static bool recv_all(int fd, void *data, size_t size) {
+    char *buffer = static_cast<char *>(data);
+    size_t received = 0;
+
+    while (received < size) {
+        ssize_t n = recv(fd, buffer + received, size - received, 0);
+
+        if (n <= 0)
+            return false;
+
+        received += n;
+    }
+
+    return true;
+}
 
 void TUI_Pipeline(Structure &st, client_server_common::Request &request,
                   bool first_load) {
@@ -37,14 +74,13 @@ void TUI_Pipeline(Structure &st, client_server_common::Request &request,
 
     if (!request.SerializeToString(&payload)) {
         printf("ERROR : Serialization");
+        return;
     }
 
-    size_t payload_size = payload.size();
-
-    char final_payload[MAX_PAYLOAD_SIZE];
-
-    snprintf(final_payload, MAX_PAYLOAD_SIZE, "%zu%s", payload_size,
-             payload.c_str());
+    if (payload.size() > MAX_PAYLOAD_SIZE) {
+        printf("ERROR : Payload too large");
+        return;
+    }
 
     int sock_fd = socket(AF_UNIX, SOCK_STREAM, 0);
 
@@ -63,40 +99,44 @@ void TUI_Pipeline(Structure &st, client_server_common::Request &request,
         return;
     }
 
-    size_t sent = 0;
+    uint32_t payload_size = htonl(static_cast<uint32_t>(payload.size()));
 
-    while (sent < payload.size()) {
-        ssize_t n =
-            send(sock_fd, payload.data() + sent, payload.size() - sent, 0);
-
-        if (n <= 0) {
-            perror("send");
-            close(sock_fd);
-            return;
-        }
-
-        sent += n;
+    if (!send_all(sock_fd, &payload_size, sizeof(payload_size)) ||
+        !send_all(sock_fd, payload.data(), payload.size())) {
+        printf("ERROR : Sending request");
+        close(sock_fd);
+        return;
     }
 
-    // receive response
-    char   response_buf[MAX_PAYLOAD_SIZE];
-    size_t received = 0;
+    uint32_t response_size_net;
 
-    while (received < MAX_PAYLOAD_SIZE) {
-        ssize_t n = recv(sock_fd, response_buf + received,
-                         MAX_PAYLOAD_SIZE - received, 0);
+    if (!recv_all(sock_fd, &response_size_net, sizeof(response_size_net))) {
+        printf("ERROR : Receiving response size");
+        close(sock_fd);
+        return;
+    }
 
-        if (n <= 0)
-            break;
+    size_t response_size = ntohl(response_size_net);
 
-        received += n;
+    if (response_size > MAX_PAYLOAD_SIZE) {
+        printf("ERROR : Response too large");
+        close(sock_fd);
+        return;
+    }
+
+    std::string response_payload(response_size, '\0');
+
+    if (!recv_all(sock_fd, response_payload.data(), response_size)) {
+        printf("ERROR : Receiving response");
+        close(sock_fd);
+        return;
     }
 
     close(sock_fd);
 
     client_server_common::Response res;
 
-    if (!res.ParseFromArray(response_buf, received)) {
+    if (!res.ParseFromString(response_payload)) {
         printf("ERROR : Deserialization");
         return;
     }
