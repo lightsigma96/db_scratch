@@ -11,18 +11,6 @@
             "id": "c5122d4a3bc5cdec",
             "type": "leaf",
             "state": {
-              "type": "excalidraw",
-              "state": {
-                "file": "Excalidraw/Drawing 2026-08-19 23.54.27.excalidraw.md"
-              },
-              "icon": "excalidraw-icon",
-              "title": "Drawing 2026-08-19 23.54.27.excalidraw"
-            }
-          },
-          {
-            "id": "e03f48da8d70f0eb",
-            "type": "leaf",
-            "state": {
               "type": "markdown",
               "state": {
                 "file": "Concurrency & WAL.md",
@@ -34,7 +22,7 @@
             }
           },
           {
-            "id": "feb38d75b6420c80",
+            "id": "e03f48da8d70f0eb",
             "type": "leaf",
             "state": {
               "type": "excalidraw",
@@ -46,7 +34,7 @@
             }
           }
         ],
-        "currentTab": 2
+        "currentTab": 1
       }
     ],
     "direction": "vertical"
@@ -214,12 +202,12 @@
       "obsidian-excalidraw-plugin:New drawing": false
     }
   },
-  "active": "feb38d75b6420c80",
+  "active": "e03f48da8d70f0eb",
   "lastOpenFiles": [
-    "Untitled.md",
     "Excalidraw/Drawing 2026-08-21 17.06.15.excalidraw.md",
     "Concurrency & WAL.md",
+    "Excalidraw/Drawing 2026-08-19 23.54.27.excalidraw.md",
     "Excalidraw/Drawing 2026-03-22 17.05.16.excalidraw.md",
-    "Excalidraw/Drawing 2026-08-19 23.54.27.excalidraw.md"
+    "Untitled.md"
   ]
 }

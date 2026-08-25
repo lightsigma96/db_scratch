@@ -1,4 +1,5 @@
 #include "proto/client_server_common.pb.h"
+#include "src/server.hpp"
 #include "tui/headers/components.hpp"
 #include "tui/headers/input_handler.hpp"
 #include <arpa/inet.h>
@@ -9,10 +10,10 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-constexpr size_t MAX_PAYLOAD_SIZE = 2048;
+constexpr size_t MAX_PAYLOAD_SIZE   = 2048;
 constexpr char   unix_server_path[] = "/tmp/db_scratch.sock";
 
-static bool send_all(int fd, const void *data, size_t size) {
+/* static bool send_all(int fd, const void *data, size_t size) {
     const char *buffer = static_cast<const char *>(data);
     size_t sent = 0;
 
@@ -42,7 +43,7 @@ static bool recv_all(int fd, void *data, size_t size) {
     }
 
     return true;
-}
+} */
 
 void TUI_Pipeline(Structure &st, client_server_common::Request &request,
                   bool first_load) {
@@ -101,8 +102,8 @@ void TUI_Pipeline(Structure &st, client_server_common::Request &request,
 
     uint32_t payload_size = htonl(static_cast<uint32_t>(payload.size()));
 
-    if (!send_all(sock_fd, &payload_size, sizeof(payload_size)) ||
-        !send_all(sock_fd, payload.data(), payload.size())) {
+    if (!server::send_all(sock_fd, &payload_size, sizeof(payload_size)) ||
+        !server::send_all(sock_fd, payload.data(), payload.size())) {
         printf("ERROR : Sending request");
         close(sock_fd);
         return;
@@ -110,7 +111,8 @@ void TUI_Pipeline(Structure &st, client_server_common::Request &request,
 
     uint32_t response_size_net;
 
-    if (!recv_all(sock_fd, &response_size_net, sizeof(response_size_net))) {
+    if (!server::recv_all(sock_fd, &response_size_net,
+                          sizeof(response_size_net))) {
         printf("ERROR : Receiving response size");
         close(sock_fd);
         return;
@@ -126,7 +128,7 @@ void TUI_Pipeline(Structure &st, client_server_common::Request &request,
 
     std::string response_payload(response_size, '\0');
 
-    if (!recv_all(sock_fd, response_payload.data(), response_size)) {
+    if (!server::recv_all(sock_fd, response_payload.data(), response_size)) {
         printf("ERROR : Receiving response");
         close(sock_fd);
         return;

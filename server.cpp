@@ -187,7 +187,7 @@ DB_Pipeline(schema::schema_manager &sch_ma, parser::Parser &parser,
 
 static bool send_all(int fd, const void *data, size_t size) {
     const char *buffer = static_cast<const char *>(data);
-    size_t sent = 0;
+    size_t      sent   = 0;
 
     while (sent < size) {
         ssize_t n = send(fd, buffer + sent, size - sent, 0);
@@ -202,7 +202,7 @@ static bool send_all(int fd, const void *data, size_t size) {
 }
 
 static bool recv_all(int fd, void *data, size_t size) {
-    char *buffer = static_cast<char *>(data);
+    char  *buffer   = static_cast<char *>(data);
     size_t received = 0;
 
     while (received < size) {
@@ -267,8 +267,8 @@ int main() {
     }
 
     struct pollfd poll_table[MAX_CLIENTS];
-    poll_table[0].fd     = listen_fd;
-    poll_table[0].events = POLLIN;
+    poll_table[0].fd      = listen_fd;
+    poll_table[0].events  = POLLIN;
     poll_table[0].revents = 0;
 
     size_t nfds = 1;
@@ -294,17 +294,16 @@ int main() {
                         continue;
                     }
 
-                    poll_table[nfds].fd       = new_client_fd;
-                    poll_table[nfds].events   = POLLIN;
-                    poll_table[nfds].revents  = 0;
+                    poll_table[nfds].fd      = new_client_fd;
+                    poll_table[nfds].events  = POLLIN;
+                    poll_table[nfds].revents = 0;
                     nfds++;
                     continue;
                 }
 
                 uint32_t request_size_net;
 
-                if (!recv_all(poll_table[fd].fd,
-                              &request_size_net,
+                if (!recv_all(poll_table[fd].fd, &request_size_net,
                               sizeof(request_size_net))) {
                     close(poll_table[fd].fd);
                     poll_table[fd] = poll_table[nfds - 1];
@@ -325,8 +324,7 @@ int main() {
 
                 std::string client_msg(request_size, '\0');
 
-                if (!recv_all(poll_table[fd].fd,
-                              client_msg.data(),
+                if (!recv_all(poll_table[fd].fd, client_msg.data(),
                               request_size)) {
                     close(poll_table[fd].fd);
                     poll_table[fd] = poll_table[nfds - 1];
@@ -346,9 +344,8 @@ int main() {
                     continue;
                 }
 
-                client_server_common::Response response =
-                    DB_Pipeline(sch_ma, parser, buff_pool, access_methods,
-                                client_req);
+                client_server_common::Response response = DB_Pipeline(
+                    sch_ma, parser, buff_pool, access_methods, client_req);
 
                 std::string response_payload;
 
@@ -364,11 +361,9 @@ int main() {
                 uint32_t response_size_net =
                     htonl(static_cast<uint32_t>(response_payload.size()));
 
-                if (!send_all(poll_table[fd].fd,
-                              &response_size_net,
+                if (!send_all(poll_table[fd].fd, &response_size_net,
                               sizeof(response_size_net)) ||
-                    !send_all(poll_table[fd].fd,
-                              response_payload.data(),
+                    !send_all(poll_table[fd].fd, response_payload.data(),
                               response_payload.size())) {
                     close(poll_table[fd].fd);
                     poll_table[fd] = poll_table[nfds - 1];

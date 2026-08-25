@@ -23,6 +23,7 @@ Hierarchical locking allows single lock to be used on table as well as on each r
 Lock Manager supports 2 calls:
 - lock (lockname, id, mode)
 - remove_transaction (id)
+- (optional) upgrade lock
 
 There is no need for different unlock, remove transaction does that, but sql allows for lower degree of transaction so it might be needed.
 
@@ -32,7 +33,7 @@ To support above calls lock manager maintains 2 DS:
 
 - Global Lock Table : Handles locks on rows, etc.
 - Transaction Table : 
-- Deadlock detector :  
+- Deadlock detector :  Deadlocks can occur when two threads tries to acquire each other's resource, this is periodically called on main thread to check for such condition.
 
 
 
