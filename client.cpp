@@ -1,5 +1,5 @@
 #include "proto/client_server_common.pb.h"
-#include "src/server.hpp"
+#include "src/server_helpers.hpp"
 #include "tui/headers/components.hpp"
 #include "tui/headers/input_handler.hpp"
 #include <arpa/inet.h>

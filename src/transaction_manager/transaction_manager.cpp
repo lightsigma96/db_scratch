@@ -1,20 +1,34 @@
 #include "trasaction_manager.hpp"
+#include <memory>
 #include <thread>
 
-void transaction_manager::TransactionManager::IterateAndAddWorker(
+/* Iterates to find the correct idle worker, if cannot find any then creates a
+ * new worker. */
+void transaction_manager::TransactionManager::IterateOrAddWorker(
     worker_functions::client &c) {
 
-    for (struct worker_functions::Worker &w : Worker_Table) {
-        if (w.state == worker_functions::IDLE) {
-            w.state = worker_functions::BUSY;
+    for (auto &w : Worker_Table) {
+        if (w->state == worker_functions::IDLE) {
+            w->mut.lock();
+            w->state  = worker_functions::BUSY;
+            w->client = c;
+            w->mut.unlock();
+            return;
         }
     }
-    struct worker_functions::Worker w;
-    std::thread t(worker_functions::Worker, w, std::ref(sch_ma),
-                  std::ref(parser), std::ref(buff_pool),
-                  std::ref(access_methods), std::ref(c.client_input));
 
-    w = {get_id(c), c, worker_functions::BUSY, t};
+    auto w = std::make_unique<struct worker_functions::Worker>();
 
-    Worker_Table.push_back(w);
+    w->state     = worker_functions::BUSY;
+    w->client    = c;
+    w->thread_id = get_id(c);
+
+    auto *worker_ptr = w.get();
+
+    Worker_Table.push_back(std::move(w));
+
+    worker_ptr->thread =
+        std::thread(worker_functions::Worker, std::ref(*worker_ptr),
+                    std::ref(sch_ma), std::ref(parser), std::ref(buff_pool),
+                    std::ref(access_methods), std::ref(poll_table_struct));
 }

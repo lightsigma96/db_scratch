@@ -33,9 +33,8 @@ bool server::recv_all(int fd, void *data, size_t size) {
 }
 
 bool server::close_client(struct pollfd poll_table[MAX_CLIENTS], size_t *nfds,
-                          size_t *fd) {
-    close(poll_table[*fd].fd);
-    poll_table[*fd] = poll_table[*nfds - 1];
+                          size_t fd) {
+    close(poll_table[fd].fd);
+    poll_table[fd] = poll_table[*nfds - 1];
     nfds--;
-    fd--;
 }
