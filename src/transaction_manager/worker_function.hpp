@@ -5,10 +5,12 @@
 #include "../../src/query_manager/headers/parser.hpp"
 #include "../../src/query_manager/headers/planner.hpp"
 #include "../../src/server_helpers.hpp"
+#include "../../src/storage_manager/headers/types.hpp"
 #include <arpa/inet.h>
 #include <mutex>
 #include <optional>
 #include <thread>
+#include <vector>
 
 namespace worker_functions {
 

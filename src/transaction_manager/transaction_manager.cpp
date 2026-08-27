@@ -21,7 +21,7 @@ void transaction_manager::TransactionManager::IterateOrAddWorker(
 
     w->state     = worker_functions::BUSY;
     w->client    = c;
-    w->thread_id = get_id(c);
+    w->thread_id = get_thread_id(c);
 
     auto *worker_ptr = w.get();
 
@@ -32,3 +32,15 @@ void transaction_manager::TransactionManager::IterateOrAddWorker(
                     std::ref(sch_ma), std::ref(parser), std::ref(buff_pool),
                     std::ref(access_methods), std::ref(poll_table_struct));
 }
+
+bool transaction_manager::TransactionManager::AcquireLockFromLockTable(
+    uint8_t &id, heap_page_types::RID &rid) {
+
+    auto match = lock_table.find(rid);
+
+    if (match != lock_table.end()) {
+        lock_table[rid] = id;
+        return true;
+    }
+    return false;
+};

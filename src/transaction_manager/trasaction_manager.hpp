@@ -1,9 +1,8 @@
 #pragma once
-#include "../../src/catalog_manager/headers/schmea_manager.hpp"
-#include "../../src/query_manager/headers/parser.hpp"
 #include "worker_function.hpp"
 #include <cstdint>
 #include <sys/poll.h>
+#include <unordered_map>
 
 /* Name transaction manager sounds related to only transaction but handles
  * entire concurrency, lock manager and result buffer */
@@ -18,8 +17,10 @@ class TransactionManager {
     schema::schema_manager                    &sch_ma;
     parser::Parser                            &parser;
     struct worker_functions::polltable_struct &poll_table_struct;
+    std::unordered_map<heap_page_types::RID, uint8_t, heap_page_types::RID_Hash>
+        lock_table;
 
-    uint8_t get_id(worker_functions::client c) {
+    uint8_t get_thread_id(worker_functions::client c) {
         return c.fd << 1;
     }
 
@@ -33,6 +34,9 @@ class TransactionManager {
     }
 
     void IterateOrAddWorker(worker_functions::client &c);
+
+    bool AcquireLockFromLockTable(uint8_t &id, heap_page_types::RID &rid);
+    void ReleaseLockFromLockTable();
 
     ~TransactionManager() {
         for (auto &worker : Worker_Table) {
