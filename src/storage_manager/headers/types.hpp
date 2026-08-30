@@ -81,13 +81,13 @@ struct RID {
     page_id pid;
     Slot    slot;
 
-    bool operator==(const RID &other) {
+    bool operator==(const RID &other) const {
         return other.pid == pid && other.slot.slot_offset == slot.slot_offset;
     }
 };
 
 struct RID_Hash {
-    size_t operator()(const RID &e) {
+    size_t operator()(const RID &e) const {
         return 0x9e3779b9 ^ ((e.pid + (3 << 2)) ^ (e.slot.slot_offset + (7 << 2)));
     }
 };

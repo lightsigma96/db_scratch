@@ -21,28 +21,21 @@
 #include <termios.h>
 #include <unistd.h>
 
-static void wipe_storage_files(std::filesystem::path &heap_filepath,
-                               std::filesystem::path &index_filepath,
+static void wipe_storage_files(std::filesystem::path &heap_filepath, std::filesystem::path &index_filepath,
                                std::filesystem::path &schema_filepath) {
 
-    std::ofstream file1(index_filepath,
-                        std::ios::binary | std::ios::out | std::ios::trunc);
-    std::ofstream file2(heap_filepath,
-                        std::ios::binary | std::ios::out | std::ios::trunc);
-    std::ofstream file3(schema_filepath,
-                        std::ios::binary | std::ios::out | std::ios::trunc);
+    std::ofstream file1(index_filepath, std::ios::binary | std::ios::out | std::ios::trunc);
+    std::ofstream file2(heap_filepath, std::ios::binary | std::ios::out | std::ios::trunc);
+    std::ofstream file3(schema_filepath, std::ios::binary | std::ios::out | std::ios::trunc);
     file1.close();
     file2.close();
     file3.close();
 }
 
 int main() {
-    std::filesystem::path heap_filepath =
-        std::filesystem::current_path() / "heap.bin";
-    std::filesystem::path index_filepath =
-        std::filesystem::current_path() / "index.bin";
-    std::filesystem::path schema_filepath =
-        std::filesystem::current_path() / "schema_file.bin";
+    std::filesystem::path heap_filepath   = std::filesystem::current_path() / "heap.bin";
+    std::filesystem::path index_filepath  = std::filesystem::current_path() / "index.bin";
+    std::filesystem::path schema_filepath = std::filesystem::current_path() / "schema_file.bin";
 
     wipe_storage_files(heap_filepath, index_filepath, schema_filepath);
 
@@ -84,11 +77,9 @@ int main() {
     schema::schema_manager         sch_ma(schema_filepath);
     parser::Parser                 parser;
 
-    worker_functions::polltable_struct pts = {.poll_table = poll_table,
-                                              .nfds       = &nfds};
+    worker_functions::polltable_struct pts = {.poll_table = poll_table, .nfds = &nfds};
 
-    transaction_manager::TransactionManager transaction_manager(
-        sch_ma, parser, buff_pool, access_methods, pts);
+    transaction_manager::TransactionManager transaction_manager(sch_ma, parser, buff_pool, access_methods, pts);
 
     while (1) {
         int ready_fds = poll(poll_table, nfds, 16);
@@ -120,8 +111,7 @@ int main() {
 
                 uint32_t request_size_net;
 
-                if (!server::recv_all(poll_table[fd].fd, &request_size_net,
-                                      sizeof(request_size_net))) {
+                if (!server::recv_all(poll_table[fd].fd, &request_size_net, sizeof(request_size_net))) {
                     server::close_client(poll_table, &nfds, fd);
                     fd--;
                     continue;
@@ -137,8 +127,7 @@ int main() {
 
                 std::string client_msg(request_size, '\0');
 
-                if (!server::recv_all(poll_table[fd].fd, client_msg.data(),
-                                      request_size)) {
+                if (!server::recv_all(poll_table[fd].fd, client_msg.data(), request_size)) {
                     server::close_client(poll_table, &nfds, fd);
                     fd--;
                     continue;
@@ -153,8 +142,7 @@ int main() {
                     continue;
                 }
 
-                worker_functions::client c = {
-                    static_cast<size_t>(poll_table[fd].fd), client_req};
+                worker_functions::client c = {static_cast<size_t>(poll_table[fd].fd), client_req};
 
                 transaction_manager.IterateOrAddWorker(c);
                 fd--;

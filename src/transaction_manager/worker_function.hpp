@@ -37,6 +37,7 @@ struct Worker {
     WORKER_STATE                                   state;
     std::thread                                    thread;
     std::mutex                                     mut;
+    std::condition_variable                        condvar;
 };
 
 static void fill_proto_schemas(client_server_common::Response &response, const std::vector<schema::schema_attr> &schemas) {
@@ -52,10 +53,18 @@ static void fill_proto_schemas(client_server_common::Response &response, const s
                 auto *proto_column = proto_table->add_columns();
                 proto_column->set_column_name(column.column_name);
                 switch (column.column_type) {
-                    case access_methods_types::STRING: proto_column->set_column_type(client_server_common::STRING); break;
-                    case access_methods_types::INTEGER: proto_column->set_column_type(client_server_common::INTEGER); break;
-                    case access_methods_types::FLOATING: proto_column->set_column_type(client_server_common::FLOAT); break;
-                    default: proto_column->set_column_type(client_server_common::UNKNOWN_COLUMN_TYPE); break;
+                    case access_methods_types::STRING:
+                        proto_column->set_column_type(client_server_common::STRING);
+                        break;
+                    case access_methods_types::INTEGER:
+                        proto_column->set_column_type(client_server_common::INTEGER);
+                        break;
+                    case access_methods_types::FLOATING:
+                        proto_column->set_column_type(client_server_common::FLOAT);
+                        break;
+                    default:
+                        proto_column->set_column_type(client_server_common::UNKNOWN_COLUMN_TYPE);
+                        break;
                 }
             }
         }
@@ -70,20 +79,24 @@ static void fill_proto_results(client_server_common::Response &response, const s
             std::visit(
                 [&](const auto &val) {
                     using T = std::decay_t<decltype(val)>;
-                    if constexpr (std::is_same_v<T, std::string>) proto_value->set_string_value(val);
-                    else if constexpr (std::is_same_v<T, int>) proto_value->set_int_value(val);
-                    else if constexpr (std::is_same_v<T, float>) proto_value->set_float_value(val);
-                }, value);
+                    if constexpr (std::is_same_v<T, std::string>)
+                        proto_value->set_string_value(val);
+                    else if constexpr (std::is_same_v<T, int>)
+                        proto_value->set_int_value(val);
+                    else if constexpr (std::is_same_v<T, float>)
+                        proto_value->set_float_value(val);
+                },
+                value);
         }
     }
 }
 
 static client_server_common::Response DB_Pipeline(schema::schema_manager &sch_ma, parser::Parser &parser,
-                                                   buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,
-                                                   client_server_common::Request &input, uint8_t &transaction_id,
-                                                   transaction_manager::LockManager &lock_manager) {
+                                                  buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,
+                                                  client_server_common::Request &input, uint8_t &transaction_id,
+                                                  transaction_manager::LockManager &lock_manager) {
     client_server_common::Response response_obj;
-    index_write::root_struct curr_root = {};
+    index_write::root_struct       curr_root = {};
 
     if (input.first_load()) {
         response_obj.set_query_type(client_server_common::FIRST_LOAD);
@@ -94,7 +107,7 @@ static client_server_common::Response DB_Pipeline(schema::schema_manager &sch_ma
         return response_obj;
     }
 
-    parser::token_iterator tok_it(input.input());
+    parser::token_iterator  tok_it(input.input());
     parser_types::ASTResult ast = parser.grammer_check(tok_it, sch_ma, input.schema_name());
 
     if (parser_types::SCHEMA_AST *sch_ptr = std::get_if<parser_types::SCHEMA_AST>(&ast)) {
@@ -119,7 +132,8 @@ static client_server_common::Response DB_Pipeline(schema::schema_manager &sch_ma
     } else if (parser_types::SELECT_AST *select_ast = std::get_if<parser_types::SELECT_AST>(&ast)) {
         if (input.schema_name() != "") {
             response_obj.set_query_type(client_server_common::SELECT_QUERY);
-            auto results = planner::select_plan(buff_pool, access_methods, sch_ma, *select_ast, input.schema_name(), transaction_id, lock_manager);
+            auto results =
+                planner::select_plan(buff_pool, access_methods, sch_ma, *select_ast, input.schema_name(), transaction_id, lock_manager);
             fill_proto_results(response_obj, results);
             std::vector<schema::schema_attr> schemas;
             sch_ma.get_schema(schemas);
@@ -133,32 +147,32 @@ static client_server_common::Response DB_Pipeline(schema::schema_manager &sch_ma
 inline void Worker(Worker &worker, schema::schema_manager &sch_ma, parser::Parser &parser, buffer_manager::buffer_pool &buff_pool,
                    access_methods::Access_methods &access_methods, polltable_struct &poll_table,
                    transaction_manager::LockManager &lock_manager) {
-    const int client_fd = static_cast<int>(worker.client->fd);
-    auto req = worker.client->client_input;
+    while (true) {
+        if (worker.state == IDLE) {
+            std::unique_lock<std::mutex> ul(worker.mut);
+            worker.condvar.wait(ul);
+        }
+        const int client_fd = static_cast<int>(worker.client->fd);
+        auto      req       = worker.client->client_input;
 
-    client_server_common::Response response = DB_Pipeline(sch_ma, parser, buff_pool, access_methods, req, worker.thread_id, lock_manager);
+        client_server_common::Response response =
+            DB_Pipeline(sch_ma, parser, buff_pool, access_methods, req, worker.thread_id, lock_manager);
 
-    std::string response_payload;
-    if (!response.SerializeToString(&response_payload)) {
-        printf("ERROR : Response Serialization");
+        std::string response_payload;
+        if (!response.SerializeToString(&response_payload)) {
+            printf("ERROR : Response Serialization");
+        } else {
+            uint32_t response_size_net = htonl(static_cast<uint32_t>(response_payload.size()));
+            if (!server::send_all(client_fd, &response_size_net, sizeof(response_size_net)) ||
+                !server::send_all(client_fd, response_payload.data(), response_payload.size())) {
+                printf("ERROR : Client Response Send");
+            }
+        }
+
         server::close_client(poll_table.poll_table, poll_table.nfds, client_fd);
         worker.client = std::nullopt;
-        worker.state = IDLE;
-        return;
+        worker.state  = IDLE;
     }
-
-    uint32_t response_size_net = htonl(static_cast<uint32_t>(response_payload.size()));
-    if (!server::send_all(client_fd, &response_size_net, sizeof(response_size_net)) ||
-        !server::send_all(client_fd, response_payload.data(), response_payload.size())) {
-        server::close_client(poll_table.poll_table, poll_table.nfds, client_fd);
-        worker.client = std::nullopt;
-        worker.state = IDLE;
-        return;
-    }
-
-    server::close_client(poll_table.poll_table, poll_table.nfds, client_fd);
-    worker.client = std::nullopt;
-    worker.state = IDLE;
 }
 
 } // namespace worker_functions

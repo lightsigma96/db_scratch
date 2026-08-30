@@ -15,6 +15,5 @@ bool send_all(int fd, const void *data, size_t size);
 
 bool recv_all(int fd, void *data, size_t size);
 
-bool close_client(struct pollfd poll_table[MAX_CLIENTS], size_t *nfds,
-                  size_t fd);
+bool close_client(struct pollfd poll_table[MAX_CLIENTS], size_t *nfds, size_t fd);
 } // namespace server

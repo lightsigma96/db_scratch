@@ -1,0 +1,202 @@
+[  4%] Building CXX object CMakeFiles/db_daemon.dir/daemon.cpp.o
+In file included from /home/lightsigma96/db_scratch/src/catalog_manager/headers/../../query_manager/headers/types.hpp:4,
+                 from /home/lightsigma96/db_scratch/src/catalog_manager/headers/schmea_manager.hpp:4,
+                 from /home/lightsigma96/db_scratch/daemon.cpp:2:
+/home/lightsigma96/db_scratch/src/catalog_manager/headers/../../query_manager/headers/../../storage_manager/headers/types.hpp:32:47: warning: overflow in conversion from ‘buffer_manager_types::frame_id’ {aka ‘long unsigned int’} to ‘int’ changes value from ‘18446744073709551615’ to ‘-1’ [-Woverflow]
+   32 |     int                           page_id   = INVALID_PAGE_ID; // gives the max value of size_t
+      |                                               ^~~~~~~~~~~~~~~
+/home/lightsigma96/db_scratch/src/catalog_manager/headers/../../query_manager/headers/../../storage_manager/headers/types.hpp:108:64: warning: overflow in conversion from ‘buffer_manager_types::frame_id’ {aka ‘long unsigned int’} to ‘btree_page_types::node_id’ {aka ‘int’} changes value from ‘18446744073709551615’ to ‘-1’ [-Woverflow]
+  108 |         node_id              next_leaf = buffer_manager_types::INVALID_PAGE_ID;
+      |                                          ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~
+/home/lightsigma96/db_scratch/src/catalog_manager/headers/../../query_manager/headers/../../storage_manager/headers/types.hpp: In member function ‘void btree_page_types::Node::init()’:
+/home/lightsigma96/db_scratch/src/catalog_manager/headers/../../query_manager/headers/../../storage_manager/headers/types.hpp:132:68: warning: overflow in conversion from ‘buffer_manager_types::frame_id’ {aka ‘long unsigned int’} to ‘btree_page_types::node_id’ {aka ‘int’} changes value from ‘18446744073709551615’ to ‘-1’ [-Woverflow]
+  132 |             this->data.leaf_node.next_leaf = buffer_manager_types::INVALID_PAGE_ID;
+      |                                              ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~
+/home/lightsigma96/db_scratch/src/catalog_manager/headers/schmea_manager.hpp: In member function ‘std::optional<std::vector<std::variant<schema::schema_attr, schema::tables_attrs, schema::col_attrs> > > schema::schema_manager::entity_find(schema::FIND_TYPE, const std::string&, std::optional<std::basic_string_view<char> >, std::optional<std::basic_string_view<char> >)’:
+/home/lightsigma96/db_scratch/src/catalog_manager/headers/schmea_manager.hpp:118:47: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<schema::tables_attrs>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  118 |                             for (int k = 0; k < curr_schema->tables.size();
+      |                                             ~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from /home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/trasaction_manager.hpp:2,
+                 from /home/lightsigma96/db_scratch/src/query_manager/headers/planner.hpp:4,
+                 from /home/lightsigma96/db_scratch/daemon.cpp:4:
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp: At global scope:
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp:105:51: error: ‘buffer_manager’ has not been declared
+  105 |                                                   buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,
+      |                                                   ^~~~~~~~~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp:105:79: error: expected ‘,’ or ‘...’ before ‘&’ token
+  105 |                                                   buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,
+      |                                                                               ^
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp: In function ‘client_server_common::Response worker_functions::DB_Pipeline(schema::schema_manager&, parser::Parser&, int)’:
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp:109:5: error: ‘index_write’ has not been declared
+  109 |     index_write::root_struct       curr_root = {};
+      |     ^~~~~~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp:111:9: error: ‘input’ was not declared in this scope; did you mean ‘int’?
+  111 |     if (input.first_load()) {
+      |         ^~~~~
+      |         int
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp:123:35: error: ‘input’ was not declared in this scope; did you mean ‘int’?
+  123 |     parser::token_iterator tok_it(input.input());
+      |                                   ^~~~~
+      |                                   int
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp:150:22: error: ‘insert_plan’ is not a member of ‘planner’
+  150 |             planner::insert_plan(buff_pool, access_methods, sch_ma, *insert_ast, curr_root, input.schema_name());
+      |                      ^~~~~~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp:150:34: error: ‘buff_pool’ was not declared in this scope; did you mean ‘buffer_pool’?
+  150 |             planner::insert_plan(buff_pool, access_methods, sch_ma, *insert_ast, curr_root, input.schema_name());
+      |                                  ^~~~~~~~~
+      |                                  buffer_pool
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp:150:45: error: ‘access_methods’ was not declared in this scope; did you mean ‘access_methods_types’?
+  150 |             planner::insert_plan(buff_pool, access_methods, sch_ma, *insert_ast, curr_root, input.schema_name());
+      |                                             ^~~~~~~~~~~~~~
+      |                                             access_methods_types
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp:150:82: error: ‘curr_root’ was not declared in this scope
+  150 |             planner::insert_plan(buff_pool, access_methods, sch_ma, *insert_ast, curr_root, input.schema_name());
+      |                                                                                  ^~~~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp:159:37: error: ‘select_plan’ is not a member of ‘planner’
+  159 |             auto results = planner::select_plan(buff_pool, access_methods, sch_ma, *select_ast, input.schema_name());
+      |                                     ^~~~~~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp:159:49: error: ‘buff_pool’ was not declared in this scope; did you mean ‘buffer_pool’?
+  159 |             auto results = planner::select_plan(buff_pool, access_methods, sch_ma, *select_ast, input.schema_name());
+      |                                                 ^~~~~~~~~
+      |                                                 buffer_pool
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp:159:60: error: ‘access_methods’ was not declared in this scope; did you mean ‘access_methods_types’?
+  159 |             auto results = planner::select_plan(buff_pool, access_methods, sch_ma, *select_ast, input.schema_name());
+      |                                                            ^~~~~~~~~~~~~~
+      |                                                            access_methods_types
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp:105:67: warning: unused parameter ‘buffer_pool’ [-Wunused-parameter]
+  105 |                                                   buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,
+      |                                                   ~~~~~~~~~~~~~~~~^~~~~~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp: At global scope:
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp:172:92: error: ‘buffer_manager’ has not been declared
+  172 | inline void Worker(Worker &worker, schema::schema_manager &sch_ma, parser::Parser &parser, buffer_manager::buffer_pool &buff_pool,
+      |                                                                                            ^~~~~~~~~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp:172:120: error: expected ‘,’ or ‘...’ before ‘&’ token
+  172 | inline void Worker(Worker &worker, schema::schema_manager &sch_ma, parser::Parser &parser, buffer_manager::buffer_pool &buff_pool,
+      |                                                                                                                        ^
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp: In function ‘void worker_functions::Worker(Worker&, schema::schema_manager&, parser::Parser&, int)’:
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp:178:75: error: ‘buff_pool’ was not declared in this scope; did you mean ‘buffer_pool’?
+  178 |     client_server_common::Response response = DB_Pipeline(sch_ma, parser, buff_pool, access_methods, req);
+      |                                                                           ^~~~~~~~~
+      |                                                                           buffer_pool
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp:178:86: error: ‘access_methods’ was not declared in this scope; did you mean ‘access_methods_types’?
+  178 |     client_server_common::Response response = DB_Pipeline(sch_ma, parser, buff_pool, access_methods, req);
+      |                                                                                      ^~~~~~~~~~~~~~
+      |                                                                                      access_methods_types
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp:184:30: error: ‘poll_table’ was not declared in this scope
+  184 |         server::close_client(poll_table.poll_table, poll_table.nfds, client_fd);
+      |                              ^~~~~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp:195:30: error: ‘poll_table’ was not declared in this scope
+  195 |         server::close_client(poll_table.poll_table, poll_table.nfds, client_fd);
+      |                              ^~~~~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp:201:26: error: ‘poll_table’ was not declared in this scope
+  201 |     server::close_client(poll_table.poll_table, poll_table.nfds, client_fd);
+      |                          ^~~~~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp:172:108: warning: unused parameter ‘buffer_pool’ [-Wunused-parameter]
+  172 | inline void Worker(Worker &worker, schema::schema_manager &sch_ma, parser::Parser &parser, buffer_manager::buffer_pool &buff_pool,
+      |                                                                                            ~~~~~~~~~~~~~~~~^~~~~~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/trasaction_manager.hpp: At global scope:
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/trasaction_manager.hpp:37:5: error: ‘buffer_manager’ does not name a type
+   37 |     buffer_manager::buffer_pool                                  &buff_pool;
+      |     ^~~~~~~~~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/trasaction_manager.hpp:38:5: error: ‘access_methods’ does not name a type
+   38 |     access_methods::Access_methods                               &access_methods;
+      |     ^~~~~~~~~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/trasaction_manager.hpp:50:80: error: ‘buffer_manager’ has not been declared
+   50 |     TransactionManager(schema::schema_manager &sch_ma, parser::Parser &parser, buffer_manager::buffer_pool &buff_pool,
+      |                                                                                ^~~~~~~~~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/trasaction_manager.hpp:50:108: error: expected ‘,’ or ‘...’ before ‘&’ token
+   50 |     TransactionManager(schema::schema_manager &sch_ma, parser::Parser &parser, buffer_manager::buffer_pool &buff_pool,
+      |                                                                                                            ^
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/trasaction_manager.hpp: In constructor ‘transaction_manager::TransactionManager::TransactionManager(schema::schema_manager&, parser::Parser&, int)’:
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/trasaction_manager.hpp:52:11: error: class ‘transaction_manager::TransactionManager’ does not have any field named ‘buff_pool’
+   52 |         : buff_pool(buff_pool), access_methods(access_methods), sch_ma(sch_ma), parser(parser), poll_table_struct(poll_table),
+      |           ^~~~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/trasaction_manager.hpp:52:21: error: ‘buff_pool’ was not declared in this scope; did you mean ‘buffer_pool’?
+   52 |         : buff_pool(buff_pool), access_methods(access_methods), sch_ma(sch_ma), parser(parser), poll_table_struct(poll_table),
+      |                     ^~~~~~~~~
+      |                     buffer_pool
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/trasaction_manager.hpp:52:33: error: class ‘transaction_manager::TransactionManager’ does not have any field named ‘access_methods’
+   52 |         : buff_pool(buff_pool), access_methods(access_methods), sch_ma(sch_ma), parser(parser), poll_table_struct(poll_table),
+      |                                 ^~~~~~~~~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/trasaction_manager.hpp:52:48: error: ‘access_methods’ was not declared in this scope; did you mean ‘access_methods_types’?
+   52 |         : buff_pool(buff_pool), access_methods(access_methods), sch_ma(sch_ma), parser(parser), poll_table_struct(poll_table),
+      |                                                ^~~~~~~~~~~~~~
+      |                                                access_methods_types
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/trasaction_manager.hpp:52:115: error: ‘poll_table’ was not declared in this scope
+   52 |         : buff_pool(buff_pool), access_methods(access_methods), sch_ma(sch_ma), parser(parser), poll_table_struct(poll_table),
+      |                                                                                                                   ^~~~~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/trasaction_manager.hpp:50:96: warning: unused parameter ‘buffer_pool’ [-Wunused-parameter]
+   50 |     TransactionManager(schema::schema_manager &sch_ma, parser::Parser &parser, buffer_manager::buffer_pool &buff_pool,
+      |                                                                                ~~~~~~~~~~~~~~~~^~~~~~~~~~~
+In file included from /home/lightsigma96/db_scratch/src/query_manager/headers/../../storage_manager/headers/buffer_manager.hpp:4,
+                 from /home/lightsigma96/db_scratch/src/query_manager/headers/../../storage_manager/headers/access_methods.hpp:4,
+                 from /home/lightsigma96/db_scratch/src/query_manager/headers/planner.hpp:6:
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../storage_manager/headers/disk_operator.hpp: In member function ‘void Disk_operator::read_page(int, char*, diskoperator_types::page_type)’:
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../storage_manager/headers/disk_operator.hpp:50:54: warning: comparison of integer expressions of different signedness: ‘size_t’ {aka ‘long unsigned int’} and ‘int’ [-Wsign-compare]
+   50 |             if (fread(buffer, PAGE_SIZE, 1, db_file) == -1) {
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../storage_manager/headers/disk_operator.hpp:56:57: warning: comparison of integer expressions of different signedness: ‘size_t’ {aka ‘long unsigned int’} and ‘int’ [-Wsign-compare]
+   56 |             if (fread(buffer, PAGE_SIZE, 1, index_file) == -1) {
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/planner.hpp: In constructor ‘planner::Filter::Filter(schema::tables_attrs, planner::Operator&, bool, parser_types::Predicate&)’:
+/home/lightsigma96/db_scratch/src/query_manager/headers/planner.hpp:122:15: warning: ‘planner::Filter::next_op’ will be initialized after [-Wreorder]
+  122 |     Operator &next_op;
+      |               ^~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/planner.hpp:75:48: warning:   ‘parser_types::Predicate& planner::Filter::predicate’ [-Wreorder]
+   75 |     parser_types::Predicate                   &predicate;
+      |                                                ^~~~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/planner.hpp:126:5: warning:   when initialized here [-Wreorder]
+  126 |     Filter(const schema::tables_attrs tn, Operator &op, bool have_predicate, parser_types::Predicate &predicate)
+      |     ^~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/planner.hpp: In member function ‘virtual void planner::Filter::init()’:
+/home/lightsigma96/db_scratch/src/query_manager/headers/planner.hpp:132:31: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<schema::col_attrs>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  132 |             for (int i = 0; i < table_attr.columns.size(); i++) {
+      |                             ~~^~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/planner.hpp: In member function ‘virtual void planner::Projection::init()’:
+/home/lightsigma96/db_scratch/src/query_manager/headers/planner.hpp:186:31: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<schema::col_attrs>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  186 |             for (int i = 0; i < table_attr.columns.size(); i++) {
+      |                             ~~^~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/planner.hpp: In member function ‘virtual access_methods_types::ScanResult planner::Projection::next()’:
+/home/lightsigma96/db_scratch/src/query_manager/headers/planner.hpp:210:61: warning: missing initializer for member ‘access_methods_types::ScanResult::tid’ [-Wmissing-field-initializers]
+  210 |         return {access_methods_types::SUCCESS, projected_row};
+      |                                                             ^
+/home/lightsigma96/db_scratch/src/query_manager/headers/planner.hpp: In constructor ‘planner::Insert::Insert(schema::tables_attrs&, planner::Operator*, parser_types::INSERT_AST&, access_methods::Access_methods&, buffer_manager::buffer_pool&, index_write::root_struct&, std::vector<long unsigned int>, transaction_manager::LockManager&)’:
+/home/lightsigma96/db_scratch/src/query_manager/headers/planner.hpp:223:39: warning: ‘planner::Insert::curr_root’ will be initialized after [-Wreorder]
+  223 |     index_write::root_struct         &curr_root;
+      |                                       ^~~~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/planner.hpp:219:39: warning:   ‘std::vector<long unsigned int> planner::Insert::data_size_arr’ [-Wreorder]
+  219 |     std::vector<size_t>               data_size_arr;
+      |                                       ^~~~~~~~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/planner.hpp:228:5: warning:   when initialized here [-Wreorder]
+  228 |     Insert(schema::tables_attrs &tn, Operator *next_op, parser_types::INSERT_AST &ast, access_methods::Access_methods &am,
+      |     ^~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/planner.hpp:228:34: warning: unused parameter ‘tn’ [-Wunused-parameter]
+  228 |     Insert(schema::tables_attrs &tn, Operator *next_op, parser_types::INSERT_AST &ast, access_methods::Access_methods &am,
+      |            ~~~~~~~~~~~~~~~~~~~~~~^~
+/home/lightsigma96/db_scratch/src/query_manager/headers/planner.hpp: In member function ‘virtual access_methods_types::ScanResult planner::Insert::next()’:
+/home/lightsigma96/db_scratch/src/query_manager/headers/planner.hpp:239:22: warning: comparison of integer expressions of different signedness: ‘std::__atomic_base<int>::__int_type’ {aka ‘int’} and ‘std::vector<access_methods_types::row_t>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  239 |         if (curr_row < ast.values.size()) {
+      |             ~~~~~~~~~^~~~~~~~~~~~~~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/planner.hpp:246:29: warning: comparison of integer expressions of different signedness: ‘std::__atomic_base<int>::__int_type’ {aka ‘int’} and ‘std::vector<access_methods_types::row_t>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  246 |         } else if (curr_row == ast.values.size()) {
+      |                    ~~~~~~~~~^~~~~~~~~~~~~~~~~~~~
+/home/lightsigma96/db_scratch/daemon.cpp: In function ‘int main()’:
+/home/lightsigma96/db_scratch/daemon.cpp:91:55: error: no matching function for call to ‘transaction_manager::TransactionManager::TransactionManager(schema::schema_manager&, parser::Parser&, buffer_manager::buffer_pool&, access_methods::Access_methods&, worker_functions::polltable_struct&)’
+   91 |         sch_ma, parser, buff_pool, access_methods, pts);
+      |                                                       ^
+  • there is 1 candidate
+    • candidate 1: ‘transaction_manager::TransactionManager::TransactionManager(schema::schema_manager&, parser::Parser&, int)’
+      /home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/trasaction_manager.hpp:50:5:
+         50 |     TransactionManager(schema::schema_manager &sch_ma, parser::Parser &parser, buffer_manager::buffer_pool &buff_pool,
+            |     ^~~~~~~~~~~~~~~~~~
+      • candidate expects 3 arguments, 5 provided
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp: At global scope:
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp:104:39: warning: ‘client_server_common::Response worker_functions::DB_Pipeline(schema::schema_manager&, parser::Parser&, int)’ defined but not used [-Wunused-function]
+  104 | static client_server_common::Response DB_Pipeline(schema::schema_manager &sch_ma, parser::Parser &parser,
+      |                                       ^~~~~~~~~~~
+/home/lightsigma96/db_scratch/src/query_manager/headers/../../../src/transaction_manager/worker_function.hpp:79:13: warning: ‘void worker_functions::fill_proto_results(client_server_common::Response&, const std::vector<access_methods_types::row_t>&)’ defined but not used [-Wunused-function]
+   79 | static void fill_proto_results(client_server_common::Response &response, const std::vector<access_methods_types::row_t> &results) {
+      |             ^~~~~~~~~~~~~~~~~~
+make[2]: *** [CMakeFiles/db_daemon.dir/build.make:79: CMakeFiles/db_daemon.dir/daemon.cpp.o] Error 1
+make[1]: *** [CMakeFiles/Makefile2:90: CMakeFiles/db_daemon.dir/all] Error 2
+make: *** [Makefile:91: all] Error 2
