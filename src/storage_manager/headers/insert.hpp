@@ -1,7 +1,7 @@
 #ifndef INSERT
 #define INSERT
 
-#include "../../../src/transaction_manager/trasaction_manager.hpp"
+#include "../../../src/transaction_manager/lock_manager.hpp"
 #include "heap_writer.hpp"
 #include "index_writer.hpp"
 #include "types.hpp"
