@@ -96,7 +96,8 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 300,
+    "collapsed": true
   },
   "right": {
     "id": "1fc72150076e2802",
@@ -202,11 +203,11 @@
       "obsidian-excalidraw-plugin:New drawing": false
     }
   },
-  "active": "33436bb55c0d305e",
+  "active": "e03f48da8d70f0eb",
   "lastOpenFiles": [
+    "Concurrency & WAL.md",
     "Excalidraw/Drawing 2026-08-21 17.06.15.excalidraw.md",
     "Pasted Image 20260826194554_662.png",
-    "Concurrency & WAL.md",
     "Excalidraw/Drawing 2026-08-19 23.54.27.excalidraw.md",
     "Excalidraw/Drawing 2026-03-22 17.05.16.excalidraw.md",
     "Untitled.md"

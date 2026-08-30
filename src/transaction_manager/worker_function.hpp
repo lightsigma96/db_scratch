@@ -7,6 +7,7 @@
 #include "../../src/server_helpers.hpp"
 #include "../../src/storage_manager/headers/types.hpp"
 #include <arpa/inet.h>
+#include <condition_variable>
 #include <mutex>
 #include <optional>
 #include <thread>
@@ -34,9 +35,7 @@ struct Worker {
     std::mutex                                     mut;
 };
 
-static void
-fill_proto_schemas(client_server_common::Response         &response,
-                   const std::vector<schema::schema_attr> &schemas) {
+static void fill_proto_schemas(client_server_common::Response &response, const std::vector<schema::schema_attr> &schemas) {
 
     for (const auto &schema : schemas) {
         auto *proto_schema = response.add_schemas();
@@ -57,23 +56,19 @@ fill_proto_schemas(client_server_common::Response         &response,
 
                 switch (column.column_type) {
                     case access_methods_types::STRING:
-                        proto_column->set_column_type(
-                            client_server_common::STRING);
+                        proto_column->set_column_type(client_server_common::STRING);
                         break;
 
                     case access_methods_types::INTEGER:
-                        proto_column->set_column_type(
-                            client_server_common::INTEGER);
+                        proto_column->set_column_type(client_server_common::INTEGER);
                         break;
 
                     case access_methods_types::FLOATING:
-                        proto_column->set_column_type(
-                            client_server_common::FLOAT);
+                        proto_column->set_column_type(client_server_common::FLOAT);
                         break;
 
                     default:
-                        proto_column->set_column_type(
-                            client_server_common::UNKNOWN_COLUMN_TYPE);
+                        proto_column->set_column_type(client_server_common::UNKNOWN_COLUMN_TYPE);
                         break;
                 }
             }
@@ -81,9 +76,7 @@ fill_proto_schemas(client_server_common::Response         &response,
     }
 }
 
-static void
-fill_proto_results(client_server_common::Response                 &response,
-                   const std::vector<access_methods_types::row_t> &results) {
+static void fill_proto_results(client_server_common::Response &response, const std::vector<access_methods_types::row_t> &results) {
 
     for (const auto &row : results) {
         auto *proto_row = response.add_results();
@@ -108,11 +101,9 @@ fill_proto_results(client_server_common::Response                 &response,
     }
 }
 
-static client_server_common::Response
-DB_Pipeline(schema::schema_manager &sch_ma, parser::Parser &parser,
-            buffer_manager::buffer_pool    &buff_pool,
-            access_methods::Access_methods &access_methods,
-            client_server_common::Request  &input) {
+static client_server_common::Response DB_Pipeline(schema::schema_manager &sch_ma, parser::Parser &parser,
+                                                  buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,
+                                                  client_server_common::Request &input) {
 
     client_server_common::Response response_obj;
     index_write::root_struct       curr_root = {};
@@ -131,11 +122,9 @@ DB_Pipeline(schema::schema_manager &sch_ma, parser::Parser &parser,
 
     parser::token_iterator tok_it(input.input());
 
-    parser_types::ASTResult ast =
-        parser.grammer_check(tok_it, sch_ma, input.schema_name());
+    parser_types::ASTResult ast = parser.grammer_check(tok_it, sch_ma, input.schema_name());
 
-    if (parser_types::SCHEMA_AST *sch_ptr =
-            std::get_if<parser_types::SCHEMA_AST>(&ast)) {
+    if (parser_types::SCHEMA_AST *sch_ptr = std::get_if<parser_types::SCHEMA_AST>(&ast)) {
 
         sch_ma.create_schema(*sch_ptr);
         response_obj.set_query_type(client_server_common::CREATE_SCHEMA_QUERY);
@@ -144,37 +133,30 @@ DB_Pipeline(schema::schema_manager &sch_ma, parser::Parser &parser,
         sch_ma.get_schema(schemas);
         fill_proto_schemas(response_obj, schemas);
 
-    } else if (parser_types::CREATE_TABLE_AST *ct_ast =
-                   std::get_if<parser_types::CREATE_TABLE_AST>(&ast)) {
+    } else if (parser_types::CREATE_TABLE_AST *ct_ast = std::get_if<parser_types::CREATE_TABLE_AST>(&ast)) {
 
         if (input.schema_name() != "") {
             sch_ma.schema_create_table(input.schema_name(), *ct_ast);
-            response_obj.set_query_type(
-                client_server_common::CREATE_TABLE_QUERY);
+            response_obj.set_query_type(client_server_common::CREATE_TABLE_QUERY);
 
             std::vector<schema::schema_attr> schemas;
             sch_ma.get_schema(schemas);
             fill_proto_schemas(response_obj, schemas);
         }
 
-    } else if (parser_types::INSERT_AST *insert_ast =
-                   std::get_if<parser_types::INSERT_AST>(&ast)) {
+    } else if (parser_types::INSERT_AST *insert_ast = std::get_if<parser_types::INSERT_AST>(&ast)) {
 
         if (input.schema_name() != "") {
-            planner::insert_plan(buff_pool, access_methods, sch_ma, *insert_ast,
-                                 curr_root, input.schema_name());
+            planner::insert_plan(buff_pool, access_methods, sch_ma, *insert_ast, curr_root, input.schema_name());
             response_obj.set_query_type(client_server_common::INSERT_QUERY);
         }
 
-    } else if (parser_types::SELECT_AST *select_ast =
-                   std::get_if<parser_types::SELECT_AST>(&ast)) {
+    } else if (parser_types::SELECT_AST *select_ast = std::get_if<parser_types::SELECT_AST>(&ast)) {
 
         if (input.schema_name() != "") {
             response_obj.set_query_type(client_server_common::SELECT_QUERY);
 
-            auto results =
-                planner::select_plan(buff_pool, access_methods, sch_ma,
-                                     *select_ast, input.schema_name());
+            auto results = planner::select_plan(buff_pool, access_methods, sch_ma, *select_ast, input.schema_name());
 
             fill_proto_results(response_obj, results);
 
@@ -187,17 +169,13 @@ DB_Pipeline(schema::schema_manager &sch_ma, parser::Parser &parser,
     return response_obj;
 }
 
-inline void Worker(Worker &worker, schema::schema_manager &sch_ma,
-                   parser::Parser                 &parser,
-                   buffer_manager::buffer_pool    &buff_pool,
-                   access_methods::Access_methods &access_methods,
-                   polltable_struct               &poll_table) {
+inline void Worker(Worker &worker, schema::schema_manager &sch_ma, parser::Parser &parser, buffer_manager::buffer_pool &buff_pool,
+                   access_methods::Access_methods &access_methods, polltable_struct &poll_table) {
 
     const int client_fd = static_cast<int>(worker.client->fd);
     auto      req       = worker.client->client_input;
 
-    client_server_common::Response response =
-        DB_Pipeline(sch_ma, parser, buff_pool, access_methods, req);
+    client_server_common::Response response = DB_Pipeline(sch_ma, parser, buff_pool, access_methods, req);
 
     std::string response_payload;
 
@@ -210,13 +188,10 @@ inline void Worker(Worker &worker, schema::schema_manager &sch_ma,
         return;
     }
 
-    uint32_t response_size_net =
-        htonl(static_cast<uint32_t>(response_payload.size()));
+    uint32_t response_size_net = htonl(static_cast<uint32_t>(response_payload.size()));
 
-    if (!server::send_all(client_fd, &response_size_net,
-                          sizeof(response_size_net)) ||
-        !server::send_all(client_fd, response_payload.data(),
-                          response_payload.size())) {
+    if (!server::send_all(client_fd, &response_size_net, sizeof(response_size_net)) ||
+        !server::send_all(client_fd, response_payload.data(), response_payload.size())) {
         server::close_client(poll_table.poll_table, poll_table.nfds, client_fd);
         worker.client = std::nullopt;
         worker.state  = IDLE;

@@ -28,10 +28,10 @@ constexpr frame_id    INVALID_PAGE_ID = static_cast<frame_id>(-1);
 constexpr std::size_t page_data_size  = 4096;
 
 struct Page {
-    char page_data[page_data_size];
-    int  page_id   = INVALID_PAGE_ID; // gives the max value of size_t
-    bool dirty_bit = false;
-    int  pin_count = 0;
+    char                          page_data[page_data_size];
+    int                           page_id   = INVALID_PAGE_ID; // gives the max value of size_t
+    bool                          dirty_bit = false;
+    int                           pin_count = 0;
     diskoperator_types::page_type type;
 };
 
@@ -60,9 +60,7 @@ struct Slot {
 };
 #pragma pack(pop)
 
-constexpr int HEAP_PAYLOAD_SIZE =
-    static_cast<int>(buffer_manager_types::page_data_size - sizeof(PageHeader) -
-                     sizeof(Slot) * MAX_SLOTS);
+constexpr int HEAP_PAYLOAD_SIZE = static_cast<int>(buffer_manager_types::page_data_size - sizeof(PageHeader) - sizeof(Slot) * MAX_SLOTS);
 #pragma pack(push, 1)
 struct HeapPage {
     PageHeader page_header;
@@ -84,14 +82,13 @@ struct RID {
     Slot    slot;
 
     bool operator==(const RID &other) {
-        return other.pid == pid;
+        return other.pid == pid && other.slot.slot_offset == slot.slot_offset;
     }
 };
 
 struct RID_Hash {
     size_t operator()(const RID &e) {
-        return 0x9e3779b9 ^
-               ((e.pid + (3 << 2)) ^ (e.slot.slot_size + (7 << 2)));
+        return 0x9e3779b9 ^ ((e.pid + (3 << 2)) ^ (e.slot.slot_offset + (7 << 2)));
     }
 };
 
@@ -132,8 +129,7 @@ struct Node {
         this->key_count = 0;
         this->is_leaf   = true;
         if (this->is_leaf) {
-            this->data.leaf_node.next_leaf =
-                buffer_manager_types::INVALID_PAGE_ID;
+            this->data.leaf_node.next_leaf = buffer_manager_types::INVALID_PAGE_ID;
         }
     }
     // overall Node constructor based on union type
@@ -160,10 +156,11 @@ struct SARG {
     VALUE_TYPE  constant;
 };
 
-enum ScanStatus { SUCCESS, EOP, EOPs, ERR, LOCKEDIN };
+enum ScanStatus { SUCCESS, EOP, EOPs, ERR };
 struct ScanResult {
     ScanStatus           scan_status;
     std::optional<row_t> scan_result;
+    uint8_t              tid;
 };
 
 } // namespace access_methods_types
