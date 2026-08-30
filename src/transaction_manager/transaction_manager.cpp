@@ -7,20 +7,18 @@
 
 void transaction_manager::TransactionManager::IterateOrAddWorker(worker_functions::client &c) {
     for (auto &w : Worker_Table) {
-        w->mut.lock();
+        std::lock_guard<std::mutex> lock(w->mut);
         if (w->state == worker_functions::IDLE) {
-            w->state  = worker_functions::BUSY;
+            w->state = worker_functions::BUSY;
             w->client = c;
-            // this when thread blocks itself, another condition where thread is blocked as it tries to access other thread (this can happen
-            // when thread tries to access something like buffer pool)
             w->condvar.notify_one();
             return;
         }
     }
 
-    auto w       = std::make_unique<struct worker_functions::Worker>();
-    w->state     = worker_functions::BUSY;
-    w->client    = c;
+    auto w = std::make_unique<worker_functions::Worker>();
+    w->state = worker_functions::BUSY;
+    w->client = c;
     w->thread_id = get_thread_id();
 
     auto *worker_ptr = w.get();
@@ -32,7 +30,7 @@ void transaction_manager::TransactionManager::IterateOrAddWorker(worker_function
 
 uint8_t transaction_manager::LockManager::AcquireLockFromLockTable(std::optional<heap_page_types::RID> rid) {
     std::unique_lock<std::mutex> lock(lock_table_mutex);
-    uint8_t                      tid = get_transaction_id();
+    uint8_t tid = get_transaction_id();
 
     if (rid.has_value()) {
         while (lock_table.find(rid.value()) != lock_table.end()) {
