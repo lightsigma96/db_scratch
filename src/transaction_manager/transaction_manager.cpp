@@ -25,7 +25,7 @@ void transaction_manager::TransactionManager::IterateOrAddWorker(worker_function
     Worker_Table.push_back(std::move(w));
 
     worker_ptr->thread = std::thread(worker_functions::Worker, std::ref(*worker_ptr), std::ref(sch_ma), std::ref(parser),
-                                     std::ref(buff_pool), std::ref(access_methods), std::ref(poll_table_struct), std::ref(lock_manager));
+                                     std::ref(buff_pool), std::ref(access_methods), std::ref(lock_manager));
 }
 
 uint8_t transaction_manager::LockManager::AcquireLockFromLockTable(std::optional<heap_page_types::RID> rid) {

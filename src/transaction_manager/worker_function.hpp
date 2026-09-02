@@ -12,6 +12,7 @@
 #include <mutex>
 #include <optional>
 #include <thread>
+#include <unistd.h>
 #include <vector>
 
 namespace transaction_manager {
@@ -21,10 +22,6 @@ class LockManager;
 namespace worker_functions {
 
 enum WORKER_STATE { IDLE, BUSY };
-struct polltable_struct {
-    struct pollfd *poll_table;
-    size_t        *nfds;
-};
 struct client {
     size_t                        fd;
     client_server_common::Request client_input;
@@ -139,20 +136,21 @@ static client_server_common::Response DB_Pipeline(schema::schema_manager &sch_ma
 }
 
 inline void Worker(Worker &worker, schema::schema_manager &sch_ma, parser::Parser &parser, buffer_manager::buffer_pool &buff_pool,
-                   access_methods::Access_methods &access_methods, polltable_struct &poll_table,
-                   transaction_manager::LockManager &lock_manager) {
+                   access_methods::Access_methods &access_methods, transaction_manager::LockManager &lock_manager) {
     while (true) {
-        client current_client;
-        {
-            std::unique_lock<std::mutex> lock(worker.mut);
-            worker.condvar.wait(lock, [&] { return worker.state == BUSY; });
-            current_client = *worker.client;
+
+        worker.mut.lock();
+        if (worker.state == IDLE) {
+            std::unique_lock<std::mutex> lock_for_cond(worker.mut);
+            worker.condvar.wait(lock_for_cond);
         }
 
-        const int                      client_fd = static_cast<int>(current_client.fd);
-        auto                           req       = current_client.client_input;
+        const int client_fd = static_cast<int>(worker.client->fd);
+        auto      req       = worker.client->client_input;
+
         client_server_common::Response response =
             DB_Pipeline(sch_ma, parser, buff_pool, access_methods, req, worker.thread_id, lock_manager);
+
         std::string response_payload;
         if (!response.SerializeToString(&response_payload))
             printf("ERROR : Response Serialization");
@@ -161,13 +159,13 @@ inline void Worker(Worker &worker, schema::schema_manager &sch_ma, parser::Parse
             if (!server::send_all(client_fd, &response_size_net, sizeof(response_size_net)) ||
                 !server::send_all(client_fd, response_payload.data(), response_payload.size()))
                 printf("ERROR : Client Response Send");
-            printf("RESPONSE SENT");
         }
-        server::close_client(poll_table.poll_table, poll_table.nfds, client_fd);
+        close(worker.client->fd);
 
-        std::lock_guard<std::mutex> lock(worker.mut);
+        worker.mut.lock();
         worker.client = std::nullopt;
         worker.state  = IDLE;
+        worker.mut.unlock();
     }
 }
 

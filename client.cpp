@@ -10,7 +10,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-constexpr size_t MAX_PAYLOAD_SIZE   = 2048;
+constexpr size_t MAX_PAYLOAD_SIZE   = SIZE_MAX;
 constexpr char   unix_server_path[] = "/tmp/db_scratch.sock";
 
 void TUI_Pipeline(Structure &st, bool first_load) {
