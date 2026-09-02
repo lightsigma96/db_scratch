@@ -96,8 +96,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300,
-    "collapsed": true
+    "width": 300
   },
   "right": {
     "id": "1fc72150076e2802",
@@ -205,8 +204,8 @@
   },
   "active": "e03f48da8d70f0eb",
   "lastOpenFiles": [
-    "Concurrency & WAL.md",
     "Excalidraw/Drawing 2026-08-21 17.06.15.excalidraw.md",
+    "Concurrency & WAL.md",
     "Pasted Image 20260826194554_662.png",
     "Excalidraw/Drawing 2026-08-19 23.54.27.excalidraw.md",
     "Excalidraw/Drawing 2026-03-22 17.05.16.excalidraw.md",

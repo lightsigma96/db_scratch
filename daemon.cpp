@@ -113,7 +113,7 @@ int main() {
 
                 if (!server::recv_all(poll_table[fd].fd, &request_size_net, sizeof(request_size_net))) {
                     server::close_client(poll_table, &nfds, fd);
-                    fd--;
+                    // fd--;
                     continue;
                 }
 
@@ -121,7 +121,7 @@ int main() {
 
                 if (request_size > server::MAX_CLIENT_MSG_SIZE) {
                     server::close_client(poll_table, &nfds, fd);
-                    fd--;
+                    // fd--;
                     continue;
                 }
 
@@ -129,23 +129,23 @@ int main() {
 
                 if (!server::recv_all(poll_table[fd].fd, client_msg.data(), request_size)) {
                     server::close_client(poll_table, &nfds, fd);
-                    fd--;
+                    // fd--;
                     continue;
                 }
 
                 client_server_common::Request client_req;
 
-                if (!client_req.ParseFromString(client_msg)) {
+                if (!client_req.ParseFromString(client_msg.c_str())) {
                     printf("ERROR : Parsing Client Message");
                     server::close_client(poll_table, &nfds, fd);
-                    fd--;
+                    // fd--;
                     continue;
                 }
 
                 worker_functions::client c = {static_cast<size_t>(poll_table[fd].fd), client_req};
 
                 transaction_manager.IterateOrAddWorker(c);
-                fd--;
+                // fd--; // fd decremented before thread actually closes client
             }
         } else if (ready_fds < 0) {
             throw std::runtime_error("SOME ERROR IN MAIN LOOP");

@@ -13,134 +13,99 @@
 constexpr size_t MAX_PAYLOAD_SIZE   = 2048;
 constexpr char   unix_server_path[] = "/tmp/db_scratch.sock";
 
-/* static bool send_all(int fd, const void *data, size_t size) {
-    const char *buffer = static_cast<const char *>(data);
-    size_t sent = 0;
-
-    while (sent < size) {
-        ssize_t n = send(fd, buffer + sent, size - sent, 0);
-
-        if (n <= 0)
-            return false;
-
-        sent += n;
-    }
-
-    return true;
-}
-
-static bool recv_all(int fd, void *data, size_t size) {
-    char *buffer = static_cast<char *>(data);
-    size_t received = 0;
-
-    while (received < size) {
-        ssize_t n = recv(fd, buffer + received, size - received, 0);
-
-        if (n <= 0)
-            return false;
-
-        received += n;
-    }
-
-    return true;
-} */
-
-void TUI_Pipeline(Structure &st, client_server_common::Request &request,
-                  bool first_load) {
-
-    std::string_view input = request.input();
-
-    for (std::unique_ptr<TextBox> &textbox : st.textbox) {
-        if (textbox->component_id == "query_input") {
-            input = textbox->get_inner_text();
-            break;
-        }
-    }
-
-    std::string curr_active_schema = "";
-    for (std::unique_ptr<Accordion> &ac : st.accordion) {
-        if (ac->component_id == "schema_display" && ac->entry.size() != 0) {
-
-            curr_active_schema = ac->entry[ac->which_selected].name;
-
-            break;
-        }
-    }
-
-    request.set_input(input);
-    request.set_schema_name(curr_active_schema);
-    request.set_first_load(first_load);
-
-    std::string payload;
-
-    if (!request.SerializeToString(&payload)) {
-        printf("ERROR : Serialization");
-        return;
-    }
-
-    if (payload.size() > MAX_PAYLOAD_SIZE) {
-        printf("ERROR : Payload too large");
-        return;
-    }
-
-    int sock_fd = socket(AF_UNIX, SOCK_STREAM, 0);
-
-    if (sock_fd < 0) {
-        perror("socket");
-        return;
-    }
-
-    struct sockaddr_un addr{};
-    addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, unix_server_path, sizeof(addr.sun_path) - 1);
-
-    if (connect(sock_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        perror("connect");
-        close(sock_fd);
-        return;
-    }
-
-    uint32_t payload_size = htonl(static_cast<uint32_t>(payload.size()));
-
-    if (!server::send_all(sock_fd, &payload_size, sizeof(payload_size)) ||
-        !server::send_all(sock_fd, payload.data(), payload.size())) {
-        printf("ERROR : Sending request");
-        close(sock_fd);
-        return;
-    }
-
-    uint32_t response_size_net;
-
-    if (!server::recv_all(sock_fd, &response_size_net,
-                          sizeof(response_size_net))) {
-        printf("ERROR : Receiving response size");
-        close(sock_fd);
-        return;
-    }
-
-    size_t response_size = ntohl(response_size_net);
-
-    if (response_size > MAX_PAYLOAD_SIZE) {
-        printf("ERROR : Response too large");
-        close(sock_fd);
-        return;
-    }
-
-    std::string response_payload(response_size, '\0');
-
-    if (!server::recv_all(sock_fd, response_payload.data(), response_size)) {
-        printf("ERROR : Receiving response");
-        close(sock_fd);
-        return;
-    }
-
-    close(sock_fd);
+void TUI_Pipeline(Structure &st, bool first_load) {
 
     client_server_common::Response res;
+    client_server_common::Request  request;
+    if (!first_load) {
 
-    if (!res.ParseFromString(response_payload)) {
-        printf("ERROR : Deserialization");
-        return;
+        // const std::string &input = request.input();
+
+        for (std::unique_ptr<TextBox> &textbox : st.textbox) {
+            if (textbox->component_id == "query_input") {
+                request.set_input(textbox->get_inner_text().data());
+                // input = textbox->get_inner_text();
+                break;
+            }
+        }
+
+        std::string curr_active_schema = "";
+        for (std::unique_ptr<Accordion> &ac : st.accordion) {
+            if (ac->component_id == "schema_display" && ac->entry.size() != 0) {
+                curr_active_schema = ac->entry[ac->which_selected].name;
+                break;
+            }
+        }
+
+        request.set_schema_name(curr_active_schema.data());
+
+        std::string payload;
+
+        if (!request.SerializeToString(&payload)) {
+            printf("ERROR : Serialization");
+            return;
+        }
+
+        if (payload.size() > MAX_PAYLOAD_SIZE) {
+            printf("ERROR : Payload too large");
+            return;
+        }
+
+        int sock_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+
+        if (sock_fd < 0) {
+            perror("socket");
+            return;
+        }
+
+        struct sockaddr_un addr{};
+        addr.sun_family = AF_UNIX;
+        strncpy(addr.sun_path, unix_server_path, sizeof(addr.sun_path) - 1);
+
+        if (connect(sock_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+            perror("connect");
+            close(sock_fd);
+            return;
+        }
+
+        uint32_t payload_size = htonl(static_cast<uint32_t>(payload.size()));
+
+        if (!server::send_all(sock_fd, &payload_size, sizeof(payload_size)) || !server::send_all(sock_fd, payload.data(), payload.size())) {
+            printf("ERROR : Sending request");
+            close(sock_fd);
+            return;
+        }
+
+        uint32_t response_size_net;
+
+        if (!server::recv_all(sock_fd, &response_size_net, sizeof(response_size_net))) {
+            printf("ERROR : Receiving response size");
+            close(sock_fd);
+            return;
+        }
+
+        size_t response_size = ntohl(response_size_net);
+
+        if (response_size > MAX_PAYLOAD_SIZE) {
+            printf("ERROR : Response too large");
+            close(sock_fd);
+            return;
+        }
+
+        std::string response_payload(response_size, '\0');
+
+        if (!server::recv_all(sock_fd, response_payload.data(), response_size)) {
+            printf("ERROR : Receiving response");
+            close(sock_fd);
+            return;
+        }
+
+        close(sock_fd);
+
+        if (!res.ParseFromString(response_payload)) {
+            printf("ERROR : Deserialization");
+            return;
+        }
     }
 
     int accord_idx = 0;
@@ -183,8 +148,7 @@ void TUI_Pipeline(Structure &st, client_server_common::Request &request,
 
         int parent_selected = st.accordion[accord_idx]->which_selected;
 
-        int child_selected =
-            st.accordion[accord_idx]->entry[parent_selected].sub_child_selected;
+        int child_selected = st.accordion[accord_idx]->entry[parent_selected].sub_child_selected;
 
         const auto &table = res.schemas(parent_selected).tables(child_selected);
 
@@ -192,15 +156,13 @@ void TUI_Pipeline(Structure &st, client_server_common::Request &request,
 
         st.table[table_idx]->divisions = num_cols;
 
-        st.table[table_idx]->rows.assign(
-            res.results_size(), std::vector<std::string>(num_cols, " "));
+        st.table[table_idx]->rows.assign(res.results_size(), std::vector<std::string>(num_cols, " "));
 
         st.table[table_idx]->headers.assign(num_cols, " ");
 
         for (int h = 0; h < table.columns_size(); h++) {
 
-            st.table[table_idx]->fill_headers(table.columns(h).column_name(),
-                                              h);
+            st.table[table_idx]->fill_headers(table.columns(h).column_name(), h);
         }
 
         for (int r = 0; r < res.results_size(); r++) {
@@ -214,18 +176,15 @@ void TUI_Pipeline(Structure &st, client_server_common::Request &request,
                 switch (value.value_case()) {
 
                     case client_server_common::Value::kIntValue:
-                        st.table[table_idx]->fill_rows(
-                            std::to_string(value.int_value()), r, v);
+                        st.table[table_idx]->fill_rows(std::to_string(value.int_value()), r, v);
                         break;
 
                     case client_server_common::Value::kStringValue:
-                        st.table[table_idx]->fill_rows(value.string_value(), r,
-                                                       v);
+                        st.table[table_idx]->fill_rows(value.string_value(), r, v);
                         break;
 
                     case client_server_common::Value::kFloatValue:
-                        st.table[table_idx]->fill_rows(
-                            std::to_string(value.float_value()), r, v);
+                        st.table[table_idx]->fill_rows(std::to_string(value.float_value()), r, v);
                         break;
 
                     case client_server_common::Value::VALUE_NOT_SET:
@@ -280,9 +239,7 @@ int main() {
     write(STDOUT_FILENO, "\033[?25l", 6);
     write(STDOUT_FILENO, "\033[2J\033[H", 7);
 
-    client_server_common::Request request;
-
-    TUI_Pipeline(st, request, true);
+    TUI_Pipeline(st, true);
     while (1) {
 
         screen.reset_region(1, 1, screen.max_cols - 1, screen.max_rows - 1, {});
@@ -297,7 +254,7 @@ int main() {
         input_handler.read(in, events);
 
         if (events.SUBMIT) {
-            TUI_Pipeline(st, request, false);
+            TUI_Pipeline(st, false);
         }
 
         st.draw_structure();
