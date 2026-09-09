@@ -139,14 +139,15 @@ inline void Worker(Worker &worker, schema::schema_manager &sch_ma, parser::Parse
                    access_methods::Access_methods &access_methods, transaction_manager::LockManager &lock_manager) {
     while (true) {
 
-        worker.mut.lock();
-        if (worker.state == IDLE) {
-            std::unique_lock<std::mutex> lock_for_cond(worker.mut);
-            worker.condvar.wait(lock_for_cond);
-        }
+        std::unique_lock<std::mutex> lock(worker.mut);
+
+        worker.condvar.wait(lock, [&] { return worker.state == BUSY; });
 
         const int client_fd = static_cast<int>(worker.client->fd);
         auto      req       = worker.client->client_input;
+        lock.unlock();
+
+        lock.unlock();
 
         client_server_common::Response response =
             DB_Pipeline(sch_ma, parser, buff_pool, access_methods, req, worker.thread_id, lock_manager);
@@ -160,12 +161,12 @@ inline void Worker(Worker &worker, schema::schema_manager &sch_ma, parser::Parse
                 !server::send_all(client_fd, response_payload.data(), response_payload.size()))
                 printf("ERROR : Client Response Send");
         }
-        close(worker.client->fd);
+        close(client_fd);
 
-        worker.mut.lock();
+        lock.lock();
         worker.client = std::nullopt;
         worker.state  = IDLE;
-        worker.mut.unlock();
+        lock.unlock();
     }
 }
 

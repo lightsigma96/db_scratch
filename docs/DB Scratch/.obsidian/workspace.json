@@ -25,12 +25,14 @@
             "id": "e03f48da8d70f0eb",
             "type": "leaf",
             "state": {
-              "type": "excalidraw",
+              "type": "markdown",
               "state": {
-                "file": "Excalidraw/Drawing 2026-08-21 17.06.15.excalidraw.md"
+                "file": "Notes (DB).md",
+                "mode": "source",
+                "source": false
               },
-              "icon": "excalidraw-icon",
-              "title": "Drawing 2026-08-21 17.06.15.excalidraw"
+              "icon": "lucide-file",
+              "title": "Notes (DB)"
             }
           }
         ],
