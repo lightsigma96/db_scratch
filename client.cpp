@@ -260,7 +260,7 @@ int main() {
         st.draw_structure();
         write(STDOUT_FILENO, "\033[H", 3);
         screen.Render();
-        events = {};
+        events.SUBMIT = false;
     }
 
     return 0;
