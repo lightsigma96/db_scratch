@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 #include <iostream>
+#include <mutex>
 #include <stdexcept>
 #include <variant>
 #include <vector>
@@ -14,10 +15,11 @@ access_methods::Access_methods::Access_methods() {
 }
 
 access_methods_types::ScanResult
-access_methods::Access_methods::heap_scan::scan(const uint8_t &thread_id, std::vector<size_t> &data_size_arr,
+access_methods::Access_methods::heap_scan::scan(std::vector<size_t>                                     &data_size_arr,
                                                 std::vector<access_methods_types::SUPORTED_COLUMN_TYPE> &col_types,
                                                 transaction_manager::LockManager                        &lock_manager) {
     while (true) {
+        std::lock_guard<std::mutex> buff_pool_lock(buff_pool.buffer_pool_lock);
         access_methods_types::row_t row;
 
         char                      *heap_page_data = buff_pool.page_access(curr_pid, diskoperator_types::HEAP_PAGE)->page_data;
@@ -25,7 +27,7 @@ access_methods::Access_methods::heap_scan::scan(const uint8_t &thread_id, std::v
 
         if (heap_page == NULL) {
             buff_pool.un_pin(curr_pid, diskoperator_types::HEAP_PAGE);
-            return {access_methods_types::ScanStatus::ERR, std::nullopt}; // can also return EOPs
+            return {access_methods_types::ScanStatus::ERR, std::nullopt, 0}; // can also return EOPs
         }
 
         if (curr_slot == heap_page->page_header.slot_count) {
@@ -33,7 +35,7 @@ access_methods::Access_methods::heap_scan::scan(const uint8_t &thread_id, std::v
             curr_pid++; // this should be equal to next pid for that particular
                         // table
             curr_slot = 0;
-            return {access_methods_types::EOP, std::nullopt};
+            return {access_methods_types::EOP, std::nullopt, 0};
         }
 
         // reading individual row
