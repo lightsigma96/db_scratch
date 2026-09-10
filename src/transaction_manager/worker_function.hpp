@@ -147,8 +147,6 @@ inline void Worker(Worker &worker, schema::schema_manager &sch_ma, parser::Parse
         auto      req       = worker.client->client_input;
         lock.unlock();
 
-        lock.unlock();
-
         client_server_common::Response response =
             DB_Pipeline(sch_ma, parser, buff_pool, access_methods, req, worker.thread_id, lock_manager);
 
