@@ -35,5 +35,13 @@ To support above calls lock manager maintains 2 DS:
 - Transaction Table : 
 - Deadlock detector :  Deadlocks can occur when two threads tries to acquire each other's resource, this is periodically called on main thread to check for such condition.
 
+### WAL
 
+A commit is considered when log records are flushed to disk before dirty page can be flushed to disk.
+
+Practically only those changes will be logged which are actually changing database unlike SELECT.
+
+What a LOG will be : 
+- state on page before performing operation.
+- Operation performed.
 
