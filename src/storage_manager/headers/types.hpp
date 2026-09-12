@@ -14,7 +14,7 @@
 
 // namespace diskoperator_types
 namespace diskoperator_types {
-enum page_type { HEAP_PAGE, INDEX_PAGE };
+enum page_type { HEAP_PAGE, INDEX_PAGE, WAL_PAGE };
 }
 
 // namespace buffer_manager_types
@@ -37,6 +37,10 @@ struct Page {
 };
 
 } // namespace buffer_manager_types
+
+namespace wal_types {
+struct WAL_Page {};
+} // namespace wal_types
 
 // namespace heap_page_types
 namespace heap_page_types {

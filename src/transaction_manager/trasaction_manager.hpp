@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../wal/wal.hpp"
 #include "lock_manager.hpp"
 #include "worker_function.hpp"
 #include <memory>
