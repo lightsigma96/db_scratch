@@ -44,9 +44,7 @@ class Disk_operator {
             index_file = fopen(index_filename.c_str(), "r+b");
         }
         if (!std::filesystem::exists(wal_filename)) {
-            wal_file = fopen(wal_filename.c_str(), "w+b");
-        } else {
-            wal_file = fopen(wal_filename.c_str(), "r+b");
+            wal_file = fopen(wal_filename.c_str(), "a+b");
         }
         db_path             = db_filename;
         index_path          = index_filename;
@@ -74,14 +72,12 @@ class Disk_operator {
     }
 
     void write_page(int pid, const char *write_data, diskoperator_types::page_type type) {
-        FILE *file = (type == diskoperator_types::HEAP_PAGE) ? db_file : index_file;
+        FILE *file;
         switch (type) {
             case diskoperator_types::HEAP_PAGE:
                 file = db_file;
             case diskoperator_types::INDEX_PAGE:
                 file = index_file;
-            case diskoperator_types::WAL_PAGE:
-                file = wal_file;
             default:
                 throw std::runtime_error("ERROR : DISK_OPERATOR couldnt decide file");
         }
@@ -99,13 +95,16 @@ class Disk_operator {
         // add a simple counter on whose particular value we will flush and fsync, as every time is bad causes the same overhead for little
         // or large data
 
-        if (type != diskoperator_types::WAL_PAGE && fsync_flush_counter % 10 == 0) {
-            fflush(file);
-            fsync(file->_fileno);
-        } else if (type == diskoperator_types::WAL_PAGE) {
+        if (fsync_flush_counter % 10 == 0) {
             fflush(file);
             fsync(file->_fileno);
         }
+    }
+
+    void write_to_wal(wal_types::WAL_entry &wal_entry) {
+        fwrite(&wal_entry, sizeof(wal_entry), 4, wal_file);
+        fflush(wal_file);
+        fsync(wal_file->_fileno);
     }
 
     uintmax_t last_pid(diskoperator_types::page_type type) {
@@ -113,8 +112,6 @@ class Disk_operator {
             return std::filesystem::file_size(db_path) / PAGE_SIZE;
         } else if (type == diskoperator_types::INDEX_PAGE) {
             return std::filesystem::file_size(index_path) / PAGE_SIZE;
-        } else if (type == diskoperator_types::WAL_PAGE) {
-            return std::filesystem::file_size(wal_file_path) / PAGE_SIZE;
         }
         throw std::runtime_error("ERROR GETTING LAST PID");
     }

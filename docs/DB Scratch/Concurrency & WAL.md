@@ -41,6 +41,8 @@ A commit is considered when log records are flushed to disk before dirty page ca
 
 Practically only those changes will be logged which are actually changing database unlike SELECT.
 
+As WAL is a append only log, there is no need of paging for this, just a method to append to WAL.
+
 What a LOG will be : 
 - page id, page offset.
 - operation performed.

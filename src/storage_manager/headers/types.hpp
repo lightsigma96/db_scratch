@@ -38,10 +38,6 @@ struct Page {
 
 } // namespace buffer_manager_types
 
-namespace wal_types {
-struct WAL_Page {};
-} // namespace wal_types
-
 // namespace heap_page_types
 namespace heap_page_types {
 
@@ -98,6 +94,17 @@ struct RID_Hash {
 };
 
 } // namespace heap_page_types
+
+namespace wal_types {
+#define MAX_QUERY_SIZE_WAL 128
+
+#pragma pack(push, 1)
+struct WAL_entry {
+    heap_page_types::RID rid;
+    char                 msg[MAX_QUERY_SIZE_WAL];
+};
+#pragma pack(pop)
+} // namespace wal_types
 
 // namespace btree_page_types
 namespace btree_page_types {
