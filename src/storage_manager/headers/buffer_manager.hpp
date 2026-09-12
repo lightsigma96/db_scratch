@@ -56,8 +56,8 @@ class buffer_pool {
     void un_pin(heap_page_types::page_id pid, diskoperator_types::page_type type);
 
     uintmax_t get_last_pid(diskoperator_types::page_type type);
-
-    void dp_write_page(buffer_manager_types::Page *page, diskoperator_types::page_type type);
+    void      dp_write_to_wal(wal_types::WAL_entry &wal_entry);
+    void      dp_write_page(buffer_manager_types::Page *page, diskoperator_types::page_type type);
 
     void dp_read_page(buffer_manager_types::Page *page, diskoperator_types::page_type type);
 
