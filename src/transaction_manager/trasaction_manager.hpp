@@ -14,6 +14,7 @@ namespace transaction_manager {
 
 class TransactionManager {
   private:
+    uint8_t                                                       thread_id_seed;
     std::vector<std::unique_ptr<struct worker_functions::Worker>> Worker_Table;
     buffer_manager::buffer_pool                                  &buff_pool;
     access_methods::Access_methods                               &access_methods;
@@ -22,7 +23,8 @@ class TransactionManager {
     LockManager                                                   lock_manager;
 
     uint8_t get_thread_id() {
-        return (0x1F ^ 2) >> 1;
+        thread_id_seed++;
+        return (0x1F ^ thread_id_seed) >> 1;
     }
 
   public:

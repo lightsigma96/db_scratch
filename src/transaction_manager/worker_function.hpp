@@ -89,7 +89,7 @@ static void fill_proto_results(client_server_common::Response &response, const s
 
 static client_server_common::Response DB_Pipeline(schema::schema_manager &sch_ma, parser::Parser &parser,
                                                   buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,
-                                                  client_server_common::Request &input, uint8_t &transaction_id,
+                                                  client_server_common::Request &input, uint8_t &tid,
                                                   transaction_manager::LockManager &lock_manager) {
     client_server_common::Response response_obj;
     index_write::root_struct       curr_root = {};
@@ -101,8 +101,10 @@ static client_server_common::Response DB_Pipeline(schema::schema_manager &sch_ma
         input.set_first_load(false);
         return response_obj;
     }
+
     parser::token_iterator  tok_it(input.input());
     parser_types::ASTResult ast = parser.grammer_check(tok_it, sch_ma, input.schema_name());
+
     if (auto *p = std::get_if<parser_types::SCHEMA_AST>(&ast)) {
         sch_ma.create_schema(*p);
         response_obj.set_query_type(client_server_common::CREATE_SCHEMA_QUERY);
@@ -119,13 +121,14 @@ static client_server_common::Response DB_Pipeline(schema::schema_manager &sch_ma
         }
     } else if (auto *p = std::get_if<parser_types::INSERT_AST>(&ast)) {
         if (input.schema_name() != "") {
-            planner::insert_plan(buff_pool, access_methods, sch_ma, *p, curr_root, input.schema_name(), lock_manager);
+            planner::plan_answer pa = planner::insert_plan(buff_pool, access_methods, sch_ma, *p, curr_root, input.schema_name());
             response_obj.set_query_type(client_server_common::INSERT_QUERY);
+            response_obj.transaction_complete = pa.transaction_completed;
         }
     } else if (auto *p = std::get_if<parser_types::SELECT_AST>(&ast)) {
         if (input.schema_name() != "") {
             response_obj.set_query_type(client_server_common::SELECT_QUERY);
-            auto results = planner::select_plan(buff_pool, access_methods, sch_ma, *p, input.schema_name(), transaction_id, lock_manager);
+            auto results = planner::select_plan(buff_pool, access_methods, sch_ma, *p, input.schema_name(), tid, lock_manager);
             fill_proto_results(response_obj, results);
             std::vector<schema::schema_attr> schemas;
             sch_ma.get_schema(schemas);
@@ -147,8 +150,14 @@ inline void Worker(Worker &worker, schema::schema_manager &sch_ma, parser::Parse
         auto      req       = worker.client->client_input;
         lock.unlock();
 
-        client_server_common::Response response =
-            DB_Pipeline(sch_ma, parser, buff_pool, access_methods, req, worker.thread_id, lock_manager);
+        // transaction starts here
+
+        uint8_t                        tid      = lock_manager.get_transaction_id();
+        client_server_common::Response response = DB_Pipeline(sch_ma, parser, buff_pool, access_methods, req, tid, lock_manager);
+        if (response.transaction_complete) {
+            // wal write here
+            // release locks here
+        }
 
         std::string response_payload;
         if (!response.SerializeToString(&response_payload))

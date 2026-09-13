@@ -77,5 +77,6 @@ message Response {
 
     repeated Row results = 2;
     repeated SchemaAttr schemas = 3;
+    bool transaction_complete = 4;
 }
 

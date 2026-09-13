@@ -38,28 +38,28 @@ class Seq_scan : public Operator {
     std::vector<access_methods_types::SUPORTED_COLUMN_TYPE> &col_types;
     schema::tables_attrs                                     table_attr;
     transaction_manager::LockManager                        &lock_manager;
-    const uint8_t                                           &thread_id;
+    uint8_t                                                 &tid;
 
   public:
     Seq_scan(const schema::tables_attrs tn, access_methods::Access_methods &access_methods, buffer_manager::buffer_pool &buff_pool,
-             std::vector<size_t> &data_size_arr, std::vector<access_methods_types::SUPORTED_COLUMN_TYPE> &col_types,
-             const uint8_t &thread_id, transaction_manager::LockManager &lock_manager)
+             std::vector<size_t> &data_size_arr, std::vector<access_methods_types::SUPORTED_COLUMN_TYPE> &col_types, uint8_t &tid,
+             transaction_manager::LockManager &lock_manager)
         : am(access_methods), buff_pool(buff_pool), heap_scan(buff_pool), data_size_arr(data_size_arr), col_types(col_types),
-          table_attr(tn), lock_manager(lock_manager), thread_id(thread_id) {
+          table_attr(tn), lock_manager(lock_manager), tid(tid) {
     }
 
     void init() override {
     }
 
     access_methods_types::ScanResult next() override {
-        access_methods_types::ScanResult res = heap_scan.scan(thread_id, data_size_arr, col_types, lock_manager);
+        access_methods_types::ScanResult res = heap_scan.scan(data_size_arr, col_types, tid, lock_manager);
         if (res.scan_status == access_methods_types::ERR)
             return {access_methods_types::ERR, std::nullopt, 0};
         if (res.scan_status == access_methods_types::EOP)
             return {access_methods_types::EOP, std::nullopt, 0};
         if (res.scan_status == access_methods_types::EOPs)
             return {access_methods_types::EOPs, std::nullopt, 0};
-        return {access_methods_types::SUCCESS, res.scan_result.value(), res.tid};
+        return {access_methods_types::SUCCESS, res.scan_result.value(), res.opration_complete};
     }
 
     void close() override {
@@ -182,7 +182,7 @@ class Projection : public Operator {
             return {access_methods_types::ERR, std::nullopt, 0};
         for (const int &idx : original_idx)
             projected_row.row.push_back(res_row.scan_result.value().row[idx]);
-        return {access_methods_types::SUCCESS, projected_row, res_row.tid};
+        return {access_methods_types::SUCCESS, projected_row, true};
     }
     void close() override {
     }
@@ -198,13 +198,13 @@ class Insert : public Operator {
     index_write::root_struct         &curr_root;
     std::atomic<int>                  curr_row = 0;
     transaction_manager::LockManager &lock_manager;
+    uint8_t                           tid;
 
   public:
     Insert(schema::tables_attrs &tn, Operator *next_op, parser_types::INSERT_AST &ast, access_methods::Access_methods &am,
-           buffer_manager::buffer_pool &buff_pool, index_write::root_struct &curr_root, std::vector<size_t> data_size_arr,
-           transaction_manager::LockManager &lock_manager)
+           buffer_manager::buffer_pool &buff_pool, index_write::root_struct &curr_root, std::vector<size_t> data_size_arr)
         : next_op(next_op), ast(ast), am(am), buff_pool(buff_pool), curr_root(curr_root), data_size_arr(data_size_arr),
-          lock_manager(lock_manager) {
+          lock_manager(lock_manager), tid(tid) {
     }
 
     void init() override {
@@ -213,27 +213,30 @@ class Insert : public Operator {
     access_methods_types::ScanResult next() override {
         access_methods_types::row_t inserted_row;
         if (curr_row < static_cast<int>(ast.values.size())) {
-            insert::create_entry(buff_pool, am, ast.values[curr_row], data_size_arr, &curr_root, false, lock_manager);
+            insert::create_entry(buff_pool, am, ast.values[curr_row], data_size_arr, &curr_root, false);
             curr_row++;
-            return {access_methods_types::SUCCESS, inserted_row, 0};
+            return {access_methods_types::SUCCESS, inserted_row, true};
         }
         if (curr_row == static_cast<int>(ast.values.size()))
-            return {access_methods_types::EOP, std::nullopt, 0};
-        return {access_methods_types::ERR, std::nullopt, 0};
+            return {access_methods_types::EOP, std::nullopt, true};
+        return {access_methods_types::ERR, std::nullopt, true};
     }
     void close() override {
     }
 };
 
-std::vector<access_methods_types::row_t> select_plan(buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,
-                                                     schema::schema_manager &sch_man, parser_types::SELECT_AST &ast,
-                                                     std::string schema_name, uint8_t &thread_id,
-                                                     transaction_manager::LockManager &lock_manager);
+struct plan_answer {
+    std::vector<access_methods_types::row_t> rows;
+    bool                                     operation_complete;
+};
 
-std::vector<access_methods_types::row_t> insert_plan(buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,
-                                                     schema::schema_manager &sch_man, parser_types::INSERT_AST &ast,
-                                                     index_write::root_struct &curr_root, std::string schema_name,
-                                                     transaction_manager::LockManager &lock_manager);
+plan_answer select_plan(buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,
+                        schema::schema_manager &sch_man, parser_types::SELECT_AST &ast, std::string schema_name, uint8_t &thread_id,
+                        transaction_manager::LockManager &lock_manager);
+
+plan_answer insert_plan(buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,
+                        schema::schema_manager &sch_man, parser_types::INSERT_AST &ast, index_write::root_struct &curr_root,
+                        std::string schema_name);
 
 }; // namespace planner
 

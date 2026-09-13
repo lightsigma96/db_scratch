@@ -16,14 +16,15 @@ access_methods::Access_methods::Access_methods() {
 
 access_methods_types::ScanResult
 access_methods::Access_methods::heap_scan::scan(std::vector<size_t>                                     &data_size_arr,
-                                                std::vector<access_methods_types::SUPORTED_COLUMN_TYPE> &col_types,
-                                                transaction_manager::LockManager                        &lock_manager) {
+                                                std::vector<access_methods_types::SUPORTED_COLUMN_TYPE> &col_types, uint8_t &tid,
+                                                transaction_manager::LockManager &lock_manager) {
     while (true) {
-        std::lock_guard<std::mutex> buff_pool_lock(buff_pool.buffer_pool_lock);
         access_methods_types::row_t row;
 
+        buff_pool.buffer_pool_lock.lock();
         char                      *heap_page_data = buff_pool.page_access(curr_pid, diskoperator_types::HEAP_PAGE)->page_data;
         heap_page_types::HeapPage *heap_page      = reinterpret_cast<heap_page_types::HeapPage *>(heap_page_data);
+        buff_pool.buffer_pool_lock.unlock();
 
         if (heap_page == NULL) {
             buff_pool.un_pin(curr_pid, diskoperator_types::HEAP_PAGE);
@@ -76,9 +77,9 @@ access_methods::Access_methods::heap_scan::scan(std::vector<size_t>             
         // currently skipping it wont cause much harm
         heap_page_types::Slot slot = {heap_page->slots[curr_slot].slot_size, heap_page->slots[curr_slot].slot_offset};
         heap_page_types::RID  rid  = {curr_pid, slot};
-        uint8_t               tid  = lock_manager.AcquireLockFromLockTable(rid);
+        lock_manager.AcquireLockFromLockTable(tid, rid);
 
-        return {access_methods_types::ScanStatus::SUCCESS, row, tid};
+        return {access_methods_types::ScanStatus::SUCCESS, row, true};
     }
 }
 

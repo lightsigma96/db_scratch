@@ -172,7 +172,7 @@ enum ScanStatus { SUCCESS, EOP, EOPs, ERR };
 struct ScanResult {
     ScanStatus           scan_status;
     std::optional<row_t> scan_result;
-    uint8_t              tid;
+    bool                 opration_complete;
 };
 
 } // namespace access_methods_types
