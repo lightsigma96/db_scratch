@@ -33,7 +33,8 @@
               "title": "Drawing 2026-08-21 17.06.15.excalidraw"
             }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "vertical"
@@ -201,10 +202,10 @@
       "obsidian-excalidraw-plugin:New drawing": false
     }
   },
-  "active": "e03f48da8d70f0eb",
+  "active": "54de1c5b0b02be6c",
   "lastOpenFiles": [
-    "Excalidraw/Drawing 2026-08-21 17.06.15.excalidraw.md",
     "Concurrency & WAL.md",
+    "Excalidraw/Drawing 2026-08-21 17.06.15.excalidraw.md",
     "Excalidraw/Drawing 2026-03-22 17.05.16.excalidraw.md",
     "Excalidraw/Drawing 2026-08-19 23.54.27.excalidraw.md",
     "Notes (DB).md",

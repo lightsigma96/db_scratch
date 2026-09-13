@@ -7,10 +7,14 @@
 #include "types.hpp"
 
 namespace insert {
-std::optional<heap_page_types::page_id> create_entry(buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,
-                                                     const access_methods_types::row_t &row, std::vector<size_t> row_data_sizes,
-                                                     index_write::root_struct *curr_root, bool use_index,
-                                                     transaction_manager::LockManager &lock_manager);
-}
+struct transaction_result {
+    std::optional<heap_page_types::page_id> root_id;
+    bool                                    transaction_complete;
+};
+
+transaction_result create_entry(buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,
+                                const access_methods_types::row_t &row, std::vector<size_t> row_data_sizes,
+                                index_write::root_struct *curr_root, bool use_index);
+} // namespace insert
 
 #endif

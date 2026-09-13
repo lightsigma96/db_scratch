@@ -33,8 +33,8 @@ class Access_methods {
         };
 
         access_methods_types::ScanResult scan(std::vector<size_t>                                     &data_size_arr,
-                                              std::vector<access_methods_types::SUPORTED_COLUMN_TYPE> &col_types,
-                                              transaction_manager::LockManager                        &lock_manager);
+                                              std::vector<access_methods_types::SUPORTED_COLUMN_TYPE> &col_types, uint8_t &tid,
+                                              transaction_manager::LockManager &lock_manager);
 
         void heap_table_push(heap_page_types::page_id pid);
     };

@@ -7,11 +7,10 @@
 #include <variant>
 #include <vector>
 
-std::vector<access_methods_types::row_t> planner::select_plan(buffer_manager::buffer_pool    &buff_pool,
-                                                              access_methods::Access_methods &access_methods,
-                                                              schema::schema_manager &sch_man, parser_types::SELECT_AST &ast,
-                                                              std::string schema_name, uint8_t &thread_id,
-                                                              transaction_manager::LockManager &lock_manager) {
+planner::plan_answer planner::select_plan(buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,
+                                          schema::schema_manager &sch_man, parser_types::SELECT_AST &ast, std::string schema_name,
+                                          uint8_t &tid, transaction_manager::LockManager &lock_manager) {
+
     std::vector<access_methods_types::row_t>        matched_rows;
     std::optional<std::vector<schema::ENTITY_TYPE>> table_find = sch_man.entity_find(schema::TABLE, ast.table_name, schema_name);
     schema::tables_attrs                           *table_ptr  = nullptr;
@@ -38,18 +37,22 @@ std::vector<access_methods_types::row_t> planner::select_plan(buffer_manager::bu
         }
     }
 
-    auto seq_scan = std::make_unique<Seq_scan>(*table_ptr, access_methods, buff_pool, data_size_arr, col_types, thread_id, lock_manager);
+    // WARN : filter and projection should also get tid & lock_manager & should be propagated across every operation, but here taking a
+    // short path directly to seq_scan
+    auto seq_scan = std::make_unique<Seq_scan>(*table_ptr, access_methods, buff_pool, data_size_arr, col_types, tid, lock_manager);
     seq_scan->init();
     auto filter = std::make_unique<Filter>(*table_ptr, *seq_scan, ast.have_predicate, ast.predicate);
     filter->init();
     auto project = std::make_unique<Projection>(*table_ptr, *filter, ast);
     project->init();
 
-    access_methods_types::ScanResult row = project->next();
+    access_methods_types::ScanResult row     = project->next();
+    bool                             op_comp = false;
     while (true) {
         if (row.scan_status == access_methods_types::SUCCESS) {
             matched_rows.push_back(row.scan_result.value());
-            row = project->next();
+            row     = project->next();
+            op_comp = row.opration_complete;
         } else if (row.scan_status == access_methods_types::ERR) {
             throw std::runtime_error("SOME ERROR OCCURED WHILE SCANING ROWS");
         } else {
@@ -57,15 +60,13 @@ std::vector<access_methods_types::row_t> planner::select_plan(buffer_manager::bu
         }
     }
 
-    lock_manager.ReleaseLockFromLockTable(thread_id);
-    return matched_rows;
+    return {matched_rows, op_comp};
 }
 
-std::vector<access_methods_types::row_t> planner::insert_plan(buffer_manager::buffer_pool    &buff_pool,
-                                                              access_methods::Access_methods &access_methods,
-                                                              schema::schema_manager &sch_man, parser_types::INSERT_AST &ast,
-                                                              index_write::root_struct &curr_root, std::string schema_name,
-                                                              transaction_manager::LockManager &lock_manager) {
+planner::plan_answer planner::insert_plan(buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,
+                                          schema::schema_manager &sch_man, parser_types::INSERT_AST &ast,
+                                          index_write::root_struct &curr_root, std::string schema_name) {
+
     std::vector<access_methods_types::row_t>        inserted_rows;
     std::optional<std::vector<schema::ENTITY_TYPE>> table_find = sch_man.entity_find(schema::TABLE, ast.table_name, schema_name);
     schema::tables_attrs                           *table_ptr  = nullptr;
@@ -91,13 +92,15 @@ std::vector<access_methods_types::row_t> planner::insert_plan(buffer_manager::bu
         }
     }
 
-    auto insert = std::make_unique<Insert>(*table_ptr, nullptr, ast, access_methods, buff_pool, curr_root, data_size_arr, lock_manager);
+    auto insert = std::make_unique<Insert>(*table_ptr, nullptr, ast, access_methods, buff_pool, curr_root, data_size_arr);
     access_methods_types::ScanResult row = insert->next();
 
+    bool op_comp = false;
     while (true) {
         if (row.scan_status == access_methods_types::SUCCESS) {
             inserted_rows.push_back(row.scan_result.value());
-            row = insert->next();
+            row     = insert->next();
+            op_comp = row.opration_complete;
         } else if (row.scan_status == access_methods_types::ERR) {
             throw std::runtime_error("SOME ERROR OCCURED WHILE SCANING ROWS");
         } else {
@@ -105,5 +108,5 @@ std::vector<access_methods_types::row_t> planner::insert_plan(buffer_manager::bu
         }
     }
 
-    return inserted_rows;
+    return {inserted_rows, op_comp};
 }

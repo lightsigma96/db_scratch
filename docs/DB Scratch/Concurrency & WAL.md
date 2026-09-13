@@ -47,9 +47,9 @@ What a LOG will be :
 - page id, page offset.
 - operation performed.
 
-DB currently flushes only on eviction and shutdown, so WAL will also perform flush now after it has written to wal file.
+~~DB currently flushes only on eviction and shutdown, so WAL will also perform flush now after it has written to wal file.
 
 As DB is threaded, shared access can be allowed as no 2 rows can be accessed by *2 threads* at same time (lock manager), similar pattern can be followed where necessary.
 
-Lock Manger starts a transaction, so it should be the one to also log changes via WAL when transaction compelete.
-
+~~Lock Manger starts a transaction, so it should be the one to also log changes via WAL when transaction compelete.~~
+Worker should start transaction, and after recieveing success response from DB_Pipeline only then commit transaction, else abort.
