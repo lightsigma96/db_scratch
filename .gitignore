@@ -1,6 +1,7 @@
 .envrc
 heap.bin
 index.bin
+wal.bin
 schema_file.bin
 gdb_output.txt
 gist_control/

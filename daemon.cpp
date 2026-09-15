@@ -22,22 +22,25 @@
 #include <unistd.h>
 
 static void wipe_storage_files(std::filesystem::path &heap_filepath, std::filesystem::path &index_filepath,
-                               std::filesystem::path &schema_filepath) {
+                               std::filesystem::path &schema_filepath, std::filesystem::path &wal_filepath) {
 
     std::ofstream file1(index_filepath, std::ios::binary | std::ios::out | std::ios::trunc);
     std::ofstream file2(heap_filepath, std::ios::binary | std::ios::out | std::ios::trunc);
     std::ofstream file3(schema_filepath, std::ios::binary | std::ios::out | std::ios::trunc);
+    std::ofstream file4(wal_filepath, std::ios::binary | std::ios::out | std::ios::trunc);
     file1.close();
     file2.close();
     file3.close();
+    file4.close();
 }
 
 int main() {
     std::filesystem::path heap_filepath   = std::filesystem::current_path() / "heap.bin";
     std::filesystem::path index_filepath  = std::filesystem::current_path() / "index.bin";
     std::filesystem::path schema_filepath = std::filesystem::current_path() / "schema_file.bin";
+    std::filesystem::path wal_filepath    = std::filesystem::current_path() / "wal.bin";
 
-    wipe_storage_files(heap_filepath, index_filepath, schema_filepath);
+    wipe_storage_files(heap_filepath, index_filepath, schema_filepath, wal_filepath);
 
     int listen_fd = socket(AF_UNIX, SOCK_STREAM, 0);
 
@@ -72,7 +75,7 @@ int main() {
 
     size_t nfds = 1;
 
-    buffer_manager::buffer_pool    buff_pool(heap_filepath, index_filepath);
+    buffer_manager::buffer_pool    buff_pool(heap_filepath, index_filepath, wal_filepath);
     access_methods::Access_methods access_methods;
     schema::schema_manager         sch_ma(schema_filepath);
     parser::Parser                 parser;

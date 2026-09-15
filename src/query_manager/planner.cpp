@@ -60,7 +60,7 @@ planner::plan_answer planner::select_plan(buffer_manager::buffer_pool &buff_pool
         }
     }
 
-    return {matched_rows, op_comp};
+    return {matched_rows, op_comp, {}};
 }
 
 planner::plan_answer planner::insert_plan(buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,
@@ -108,5 +108,5 @@ planner::plan_answer planner::insert_plan(buffer_manager::buffer_pool &buff_pool
         }
     }
 
-    return {inserted_rows, op_comp};
+    return {inserted_rows, op_comp, insert->get_inserted_rids()};
 }

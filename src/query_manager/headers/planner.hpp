@@ -190,21 +190,19 @@ class Projection : public Operator {
 
 class Insert : public Operator {
   private:
-    Operator                         *next_op;
-    std::vector<size_t>               data_size_arr;
-    parser_types::INSERT_AST         &ast;
-    access_methods::Access_methods   &am;
-    buffer_manager::buffer_pool      &buff_pool;
-    index_write::root_struct         &curr_root;
-    std::atomic<int>                  curr_row = 0;
-    transaction_manager::LockManager &lock_manager;
-    uint8_t                           tid;
+    Operator                       *next_op;
+    std::vector<size_t>             data_size_arr;
+    parser_types::INSERT_AST       &ast;
+    access_methods::Access_methods &am;
+    buffer_manager::buffer_pool    &buff_pool;
+    index_write::root_struct       &curr_root;
+    std::atomic<int>                curr_row = 0;
+    std::vector<heap_page_types::RID> inserted_rids;
 
   public:
     Insert(schema::tables_attrs &tn, Operator *next_op, parser_types::INSERT_AST &ast, access_methods::Access_methods &am,
            buffer_manager::buffer_pool &buff_pool, index_write::root_struct &curr_root, std::vector<size_t> data_size_arr)
-        : next_op(next_op), ast(ast), am(am), buff_pool(buff_pool), curr_root(curr_root), data_size_arr(data_size_arr),
-          lock_manager(lock_manager), tid(tid) {
+        : next_op(next_op), ast(ast), am(am), buff_pool(buff_pool), curr_root(curr_root), data_size_arr(data_size_arr) {
     }
 
     void init() override {
@@ -213,7 +211,9 @@ class Insert : public Operator {
     access_methods_types::ScanResult next() override {
         access_methods_types::row_t inserted_row;
         if (curr_row < static_cast<int>(ast.values.size())) {
-            insert::create_entry(buff_pool, am, ast.values[curr_row], data_size_arr, &curr_root, false);
+            insert::transaction_result res =
+                insert::create_entry(buff_pool, am, ast.values[curr_row], data_size_arr, &curr_root, false);
+            inserted_rids.push_back(res.rid);
             curr_row++;
             return {access_methods_types::SUCCESS, inserted_row, true};
         }
@@ -221,6 +221,11 @@ class Insert : public Operator {
             return {access_methods_types::EOP, std::nullopt, true};
         return {access_methods_types::ERR, std::nullopt, true};
     }
+
+    const std::vector<heap_page_types::RID> &get_inserted_rids() const {
+        return inserted_rids;
+    }
+
     void close() override {
     }
 };
@@ -228,6 +233,7 @@ class Insert : public Operator {
 struct plan_answer {
     std::vector<access_methods_types::row_t> rows;
     bool                                     operation_complete;
+    std::vector<heap_page_types::RID>        rids;
 };
 
 plan_answer select_plan(buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,

@@ -40,8 +40,9 @@ access_methods::Access_methods::heap_scan::scan(std::vector<size_t>             
         }
 
         // reading individual row
-        size_t cum_offset = heap_page->slots[curr_slot].slot_offset;
-        if (!heap_page->slots[curr_slot].deleted) {
+        heap_page_types::Slot current_slot = heap_page->slots[curr_slot];
+        size_t                cum_offset   = current_slot.slot_offset;
+        if (!current_slot.deleted) {
             if (data_size_arr.size() == col_types.size()) {
                 for (int i = 0; i < data_size_arr.size(); i++) {
                     access_methods_types::VALUE_TYPE data;
@@ -75,8 +76,7 @@ access_methods::Access_methods::heap_scan::scan(std::vector<size_t>             
 
         // slot size is not going to be used in lock table (for hashing),
         // currently skipping it wont cause much harm
-        heap_page_types::Slot slot = {heap_page->slots[curr_slot].slot_size, heap_page->slots[curr_slot].slot_offset};
-        heap_page_types::RID  rid  = {curr_pid, slot};
+        heap_page_types::RID rid = {curr_pid, current_slot};
         lock_manager.AcquireLockFromLockTable(tid, rid);
 
         return {access_methods_types::ScanStatus::SUCCESS, row, true};

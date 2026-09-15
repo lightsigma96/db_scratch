@@ -6,6 +6,7 @@
 #include "../../src/query_manager/headers/planner.hpp"
 #include "../../src/server_helpers.hpp"
 #include "../../src/storage_manager/headers/types.hpp"
+#include "../../src/wal/wal.hpp"
 #include <arpa/inet.h>
 #include <condition_variable>
 #include <cstdio>
@@ -90,7 +91,8 @@ static void fill_proto_results(client_server_common::Response &response, const s
 static client_server_common::Response DB_Pipeline(schema::schema_manager &sch_ma, parser::Parser &parser,
                                                   buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,
                                                   client_server_common::Request &input, uint8_t &tid,
-                                                  transaction_manager::LockManager &lock_manager) {
+                                                  transaction_manager::LockManager  &lock_manager,
+                                                  std::vector<heap_page_types::RID> &wal_rids) {
     client_server_common::Response response_obj;
     index_write::root_struct       curr_root = {};
     if (input.first_load()) {
@@ -123,13 +125,15 @@ static client_server_common::Response DB_Pipeline(schema::schema_manager &sch_ma
         if (input.schema_name() != "") {
             planner::plan_answer pa = planner::insert_plan(buff_pool, access_methods, sch_ma, *p, curr_root, input.schema_name());
             response_obj.set_query_type(client_server_common::INSERT_QUERY);
-            response_obj.transaction_complete = pa.transaction_completed;
+            response_obj.set_transaction_complete(pa.operation_complete);
+            wal_rids = pa.rids;
         }
     } else if (auto *p = std::get_if<parser_types::SELECT_AST>(&ast)) {
         if (input.schema_name() != "") {
             response_obj.set_query_type(client_server_common::SELECT_QUERY);
-            auto results = planner::select_plan(buff_pool, access_methods, sch_ma, *p, input.schema_name(), tid, lock_manager);
-            fill_proto_results(response_obj, results);
+            planner::plan_answer pa = planner::select_plan(buff_pool, access_methods, sch_ma, *p, input.schema_name(), tid, lock_manager);
+            fill_proto_results(response_obj, pa.rows);
+            response_obj.set_transaction_complete(pa.operation_complete);
             std::vector<schema::schema_attr> schemas;
             sch_ma.get_schema(schemas);
             fill_proto_schemas(response_obj, schemas);
@@ -139,7 +143,7 @@ static client_server_common::Response DB_Pipeline(schema::schema_manager &sch_ma
 }
 
 inline void Worker(Worker &worker, schema::schema_manager &sch_ma, parser::Parser &parser, buffer_manager::buffer_pool &buff_pool,
-                   access_methods::Access_methods &access_methods, transaction_manager::LockManager &lock_manager) {
+                   access_methods::Access_methods &access_methods, transaction_manager::LockManager &lock_manager, WAL::WAL &wal) {
     while (true) {
 
         std::unique_lock<std::mutex> lock(worker.mut);
@@ -152,11 +156,14 @@ inline void Worker(Worker &worker, schema::schema_manager &sch_ma, parser::Parse
 
         // transaction starts here
 
-        uint8_t                        tid      = lock_manager.get_transaction_id();
-        client_server_common::Response response = DB_Pipeline(sch_ma, parser, buff_pool, access_methods, req, tid, lock_manager);
-        if (response.transaction_complete) {
-            // wal write here
-            // release locks here
+        uint8_t                           tid = lock_manager.get_transaction_id();
+        std::vector<heap_page_types::RID> wal_rids;
+        client_server_common::Response response = DB_Pipeline(sch_ma, parser, buff_pool, access_methods, req, tid, lock_manager, wal_rids);
+        if (response.transaction_complete()) {
+            for (const auto &rid : wal_rids)
+                wal.CommitTransaction(rid, req.input().c_str());
+
+            lock_manager.ReleaseLockFromLockTable(tid);
         }
 
         std::string response_payload;

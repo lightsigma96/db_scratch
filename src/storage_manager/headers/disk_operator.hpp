@@ -2,6 +2,7 @@
 #define DISK_OPERATOR
 
 #include "types.hpp"
+#include <cerrno>
 #include <cstdio>
 #include <cstring>
 #include <exception>
@@ -43,8 +44,10 @@ class Disk_operator {
         } else {
             index_file = fopen(index_filename.c_str(), "r+b");
         }
-        if (!std::filesystem::exists(wal_filename)) {
-            wal_file = fopen(wal_filename.c_str(), "a+b");
+        // Always open WAL: daemon may create/truncate wal.bin before Disk_operator runs.
+        wal_file = fopen(wal_filename.c_str(), "a+b");
+        if (!wal_file) {
+            throw std::runtime_error("Could not open wal file");
         }
         db_path             = db_filename;
         index_path          = index_filename;
@@ -102,9 +105,23 @@ class Disk_operator {
     }
 
     void write_to_wal(wal_types::WAL_entry &wal_entry) {
-        fwrite(&wal_entry, sizeof(wal_entry), 4, wal_file);
+        const size_t total = strlen(wal_entry.msg) + 1;
+        size_t       offset = 0;
+
+        while (offset < total) {
+            ssize_t n = write(fileno(wal_file), wal_entry.msg + offset, total - offset);
+            if (n < 0) {
+                if (errno == EINTR)
+                    continue;
+                throw std::runtime_error("Could not write WAL entry");
+            }
+            if (n == 0)
+                throw std::runtime_error("WAL write returned 0 bytes");
+            offset += static_cast<size_t>(n);
+        }
+
         fflush(wal_file);
-        fsync(wal_file->_fileno);
+        fsync(fileno(wal_file));
     }
 
     uintmax_t last_pid(diskoperator_types::page_type type) {

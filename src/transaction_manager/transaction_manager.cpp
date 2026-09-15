@@ -25,7 +25,7 @@ void transaction_manager::TransactionManager::IterateOrAddWorker(worker_function
     Worker_Table.push_back(std::move(w));
 
     worker_ptr->thread = std::thread(worker_functions::Worker, std::ref(*worker_ptr), std::ref(sch_ma), std::ref(parser),
-                                     std::ref(buff_pool), std::ref(access_methods), std::ref(lock_manager));
+                                     std::ref(buff_pool), std::ref(access_methods), std::ref(lock_manager), std::ref(wal));
 }
 
 uint8_t transaction_manager::LockManager::AcquireLockFromLockTable(uint8_t &tid, std::optional<heap_page_types::RID> rid) {
@@ -50,7 +50,8 @@ void transaction_manager::LockManager::ReleaseLockFromLockTable(const uint8_t &t
 
     auto if_present_tid = lock_table.find(tid);
     if (if_present_tid == lock_table.end()) {
-        throw std::runtime_error("UNABLE TO LOCATE RID FOR GIVEN TRANSACTION ID");
+        // INSERT (and other paths) may complete a transaction without acquiring row locks.
+        return;
     }
 
     for (const auto &ele : if_present_tid->second) {
