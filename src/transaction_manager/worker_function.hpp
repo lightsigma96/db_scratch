@@ -91,8 +91,7 @@ static void fill_proto_results(client_server_common::Response &response, const s
 static client_server_common::Response DB_Pipeline(schema::schema_manager &sch_ma, parser::Parser &parser,
                                                   buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,
                                                   client_server_common::Request &input, uint8_t &tid,
-                                                  transaction_manager::LockManager  &lock_manager,
-                                                  std::vector<heap_page_types::RID> &wal_rids) {
+                                                  transaction_manager::LockManager &lock_manager, WAL::WAL &wal) {
     client_server_common::Response response_obj;
     index_write::root_struct       curr_root = {};
     if (input.first_load()) {
@@ -123,10 +122,10 @@ static client_server_common::Response DB_Pipeline(schema::schema_manager &sch_ma
         }
     } else if (auto *p = std::get_if<parser_types::INSERT_AST>(&ast)) {
         if (input.schema_name() != "") {
-            planner::plan_answer pa = planner::insert_plan(buff_pool, access_methods, sch_ma, *p, curr_root, input.schema_name());
+            planner::plan_answer pa =
+                planner::insert_plan(buff_pool, access_methods, sch_ma, *p, curr_root, input.schema_name(), wal, input.input().c_str());
             response_obj.set_query_type(client_server_common::INSERT_QUERY);
             response_obj.set_transaction_complete(pa.operation_complete);
-            wal_rids = pa.rids;
         }
     } else if (auto *p = std::get_if<parser_types::SELECT_AST>(&ast)) {
         if (input.schema_name() != "") {
@@ -154,17 +153,9 @@ inline void Worker(Worker &worker, schema::schema_manager &sch_ma, parser::Parse
         auto      req       = worker.client->client_input;
         lock.unlock();
 
-        // transaction starts here
-
-        uint8_t                           tid = lock_manager.get_transaction_id();
-        std::vector<heap_page_types::RID> wal_rids;
-        client_server_common::Response response = DB_Pipeline(sch_ma, parser, buff_pool, access_methods, req, tid, lock_manager, wal_rids);
-        if (response.transaction_complete()) {
-            for (const auto &rid : wal_rids)
-                wal.CommitTransaction(rid, req.input().c_str());
-
-            lock_manager.ReleaseLockFromLockTable(tid);
-        }
+        uint8_t                        tid      = lock_manager.get_transaction_id();
+        client_server_common::Response response = DB_Pipeline(sch_ma, parser, buff_pool, access_methods, req, tid, lock_manager, wal);
+        lock_manager.ReleaseLockFromLockTable(tid);
 
         std::string response_payload;
         if (!response.SerializeToString(&response_payload))

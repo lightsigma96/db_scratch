@@ -6,7 +6,7 @@
 
 insert::transaction_result insert::create_entry(buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,
                                                 const access_methods_types::row_t &row, std::vector<size_t> row_data_sizes,
-                                                index_write::root_struct *curr_root, bool use_index) {
+                                                index_write::root_struct *curr_root, bool use_index, WAL::WAL &wal, const char *operation) {
 
     uintmax_t last_heap_pid = buff_pool.get_last_pid(diskoperator_types::HEAP_PAGE);
 
@@ -21,6 +21,7 @@ insert::transaction_result insert::create_entry(buffer_manager::buffer_pool &buf
     heap_page_types::Slot res_slot = heap_writer::heap_write(raw_heap_page->page_data, row, row_data_sizes);
     raw_heap_page->dirty_bit       = true;
     heap_page_types::RID res_rid   = {raw_heap_page->page_id, res_slot};
+    wal.CommitTransaction(res_rid, operation);
     buff_pool.un_pin(last_heap_pid, diskoperator_types::HEAP_PAGE);
 
     // Initialize the index root only once, then reuse it across inserts.
