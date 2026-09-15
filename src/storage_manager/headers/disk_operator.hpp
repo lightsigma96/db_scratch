@@ -27,7 +27,7 @@ class Disk_operator {
     FILE                 *index_file;
     FILE                 *wal_file;
     int                   PAGE_SIZE;
-    int                   fsync_flush_counter;
+    uint16_t              LSN;
 
   public:
     Disk_operator(const std::string &db_filename, const std::string &index_filename, const std::string &wal_filename, int page_size) {
@@ -49,11 +49,11 @@ class Disk_operator {
         if (!wal_file) {
             throw std::runtime_error("Could not open wal file");
         }
-        db_path             = db_filename;
-        index_path          = index_filename;
-        wal_file_path       = wal_filename;
-        PAGE_SIZE           = page_size;
-        fsync_flush_counter = 0;
+        db_path       = db_filename;
+        index_path    = index_filename;
+        wal_file_path = wal_filename;
+        PAGE_SIZE     = page_size;
+        LSN           = 0;
     }
 
     void read_page(int pid, char *buffer, diskoperator_types::page_type type) {
@@ -95,19 +95,17 @@ class Disk_operator {
         /* if (dirty_bit) {
             dirty_bit = false;
         } */
-        // add a simple counter on whose particular value we will flush and fsync, as every time is bad causes the same overhead for little
-        // or large data
+        //  as every time is bad causes the same overhead for little or large data, this is called very less
 
-        if (fsync_flush_counter % 10 == 0) {
-            fflush(file);
-            fsync(file->_fileno);
-        }
+        fflush(file);
+        fsync(file->_fileno);
     }
 
     void write_to_wal(wal_types::WAL_entry &wal_entry) {
-        const size_t total = strlen(wal_entry.msg) + 1;
+        const size_t total  = strlen(wal_entry.msg) + 1;
         size_t       offset = 0;
 
+        wal_entry.LSN = ++LSN;
         while (offset < total) {
             ssize_t n = write(fileno(wal_file), wal_entry.msg + offset, total - offset);
             if (n < 0) {

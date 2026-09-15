@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <iostream>
@@ -100,6 +101,7 @@ namespace wal_types {
 
 #pragma pack(push, 1)
 struct WAL_entry {
+    uint16_t             LSN;
     heap_page_types::RID rid;
     char                 msg[MAX_QUERY_SIZE_WAL];
 };

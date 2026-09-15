@@ -37,6 +37,8 @@ To support above calls lock manager maintains 2 DS:
 
 ### WAL
 
+*(buffer pool page is only getting flushed and fsync during eviction & close so already very less)*
+
 A commit is considered when log records are flushed to disk before dirty page can be flushed to disk.
 
 Practically only those changes will be logged which are actually changing database unlike SELECT.
@@ -52,4 +54,8 @@ What a LOG will be :
 As DB is threaded, shared access can be allowed as no 2 rows can be accessed by *2 threads* at same time (lock manager), similar pattern can be followed where necessary.
 
 ~~Lock Manger starts a transaction, so it should be the one to also log changes via WAL when transaction compelete.~~
-Worker should start transaction, and after recieveing success response from DB_Pipeline only then commit transaction, else abort.
+					|
+~~Worker should start transaction, and after recieveing success response from DB_Pipeline only then commit transaction, else abort.~~
+					|
+As WAL usually first records the transaction and only after transaction marks it commited, so here REDO means replaying history while UNDO means to remove any uncommited transaction record. But here we can just wal commit before any write operation *(which is only INSERT in our case)* or db changing opeartion that ensures 1. wal is flushed before heap/index pages 2. ordering is maintained 3. log record must be flushed before operation completes.
+(Note that in our case both transaction operation and commit are in same record, not like first logging transaction and then logging its commit).

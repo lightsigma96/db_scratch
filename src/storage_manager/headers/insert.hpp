@@ -2,6 +2,7 @@
 #define INSERT
 
 #include "../../../src/transaction_manager/lock_manager.hpp"
+#include "../../../src/wal/wal.hpp"
 #include "heap_writer.hpp"
 #include "index_writer.hpp"
 #include "types.hpp"
@@ -15,7 +16,7 @@ struct transaction_result {
 
 transaction_result create_entry(buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,
                                 const access_methods_types::row_t &row, std::vector<size_t> row_data_sizes,
-                                index_write::root_struct *curr_root, bool use_index);
+                                index_write::root_struct *curr_root, bool use_index, WAL::WAL &wal, const char *operation);
 } // namespace insert
 
 #endif
