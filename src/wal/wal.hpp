@@ -17,7 +17,7 @@ class WAL {
         wal_types::WAL_entry wale;
 
         wale.rid = rid;
-        snprintf(wale.msg, MAX_QUERY_SIZE_WAL, "%s", operation);
+        snprintf(wale.msg, MAX_QUERY_SIZE_WAL, "%s\n", operation);
 
         buff_pool.dp_write_to_wal(wale);
     }

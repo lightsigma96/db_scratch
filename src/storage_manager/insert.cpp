@@ -34,7 +34,7 @@ insert::transaction_result insert::create_entry(buffer_manager::buffer_pool &buf
         index_write::index_insert(buff_pool, access_methods, curr_root->root_pid, key, res_rid, curr_root);
 
         // TODO: add if any condtion required for setting true/false
-        return {curr_root->root_pid, true};
+        return {curr_root->root_pid, true, res_rid};
     }
-    return {std::nullopt, true};
+    return {std::nullopt, true, res_rid};
 }

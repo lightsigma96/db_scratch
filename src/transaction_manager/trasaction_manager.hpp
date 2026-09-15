@@ -21,6 +21,7 @@ class TransactionManager {
     schema::schema_manager                                       &sch_ma;
     parser::Parser                                               &parser;
     LockManager                                                   lock_manager;
+    WAL::WAL                                                      wal;
 
     uint8_t get_thread_id() {
         thread_id_seed++;
@@ -30,7 +31,7 @@ class TransactionManager {
   public:
     TransactionManager(schema::schema_manager &sch_ma, parser::Parser &parser, buffer_manager::buffer_pool &buff_pool,
                        access_methods::Access_methods &access_methods)
-        : buff_pool(buff_pool), access_methods(access_methods), sch_ma(sch_ma), parser(parser), lock_manager() {
+        : buff_pool(buff_pool), access_methods(access_methods), sch_ma(sch_ma), parser(parser), lock_manager(), wal(buff_pool) {
     }
 
     void IterateOrAddWorker(worker_functions::client &c);

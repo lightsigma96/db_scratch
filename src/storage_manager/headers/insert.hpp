@@ -10,6 +10,7 @@ namespace insert {
 struct transaction_result {
     std::optional<heap_page_types::page_id> root_id;
     bool                                    transaction_complete;
+    heap_page_types::RID                    rid;
 };
 
 transaction_result create_entry(buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,

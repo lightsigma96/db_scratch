@@ -31,7 +31,6 @@
 #include "google/protobuf/extension_set.h"  // IWYU pragma: export
 #include "google/protobuf/generated_enum_reflection.h"
 #include "google/protobuf/unknown_field_set.h"
-#include <sys/socket.h>
 // @@protoc_insertion_point(includes)
 
 // Must be included last.
@@ -56,24 +55,6 @@ extern "C" {
 extern const ::google::protobuf::internal::DescriptorTable descriptor_table_client_5fserver_5fcommon_2eproto;
 }  // extern "C"
 namespace client_server_common {
-constexpr char   unix_server_path[]  = "/tmp/db_scratch.sock";
-inline int getUnixSocket() {
-    struct sockaddr addr = {.sa_family = AF_UNIX, .sa_data = ""};
-
-    int fd;
-    if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-        printf("ERROR : socket");
-        exit(1);
-    };
-
-    strncpy(addr.sa_data, unix_server_path, sizeof(addr.sa_data));
-    if (bind(fd, &addr, sizeof(addr.sa_family) + sizeof(unix_server_path)) <
-        0) {
-        printf("ERROR : socket");
-        exit(1);
-    } // look out
-    return fd;
-}
 enum RESPONSE_TYPE : int;
 extern const uint32_t RESPONSE_TYPE_internal_data_[];
 enum SUPPORTED_COLUMN_TYPE : int;
@@ -1792,6 +1773,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Response final : public ::google::p
     kResultsFieldNumber = 2,
     kSchemasFieldNumber = 3,
     kQueryTypeFieldNumber = 1,
+    kTransactionCompleteFieldNumber = 4,
   };
   // repeated .client_server_common.Row results = 2;
   [[nodiscard]] int results_size()
@@ -1845,11 +1827,21 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Response final : public ::google::p
   void _internal_set_query_type(::client_server_common::RESPONSE_TYPE value);
 
   public:
+  // bool transaction_complete = 4;
+  void clear_transaction_complete() ;
+  [[nodiscard]] bool transaction_complete() const;
+  void set_transaction_complete(bool value);
+
+  private:
+  bool _internal_transaction_complete() const;
+  void _internal_set_transaction_complete(bool value);
+
+  public:
   // @@protoc_insertion_point(class_scope:client_server_common.Response)
  private:
   class _Internal;
   using ParseTableT_ =
-      ::google::protobuf::internal::TcParseTable<2, 3,
+      ::google::protobuf::internal::TcParseTable<2, 4,
                           2, 0,
                           2>;
   static constexpr ParseTableT_ InternalGenerateParseTable_(
@@ -1881,6 +1873,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Response final : public ::google::p
     ::google::protobuf::RepeatedPtrField< ::client_server_common::Row > results_;
     ::google::protobuf::RepeatedPtrField< ::client_server_common::SchemaAttr > schemas_;
     int query_type_;
+    bool transaction_complete_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -2796,6 +2789,30 @@ Response::_internal_mutable_schemas() {
   return &_impl_.schemas_;
 }
 
+// bool transaction_complete = 4;
+inline void Response::clear_transaction_complete() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.transaction_complete_ = false;
+  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+}
+inline bool Response::transaction_complete() const {
+  // @@protoc_insertion_point(field_get:client_server_common.Response.transaction_complete)
+  return _internal_transaction_complete();
+}
+inline void Response::set_transaction_complete(bool value) {
+  _internal_set_transaction_complete(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  // @@protoc_insertion_point(field_set:client_server_common.Response.transaction_complete)
+}
+inline bool Response::_internal_transaction_complete() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.transaction_complete_;
+}
+inline void Response::_internal_set_transaction_complete(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.transaction_complete_ = value;
+}
+
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif  // __GNUC__
@@ -2828,4 +2845,4 @@ inline const EnumDescriptor* PROTOBUF_NONNULL GetEnumDescriptor<::client_server_
 #include "google/protobuf/port_undef.inc"
 // clang-format on
 
-#endif // client_5fserver_5fcommon_2eproto_2epb_2eh
+#endif  // client_5fserver_5fcommon_2eproto_2epb_2eh
