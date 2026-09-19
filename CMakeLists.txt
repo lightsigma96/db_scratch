@@ -73,6 +73,7 @@ target_include_directories(db_client PRIVATE
 
 target_compile_features(db_client PRIVATE cxx_std_17)
 
+  
 # -------------------------
 # Warnings
 # -------------------------
@@ -91,3 +92,29 @@ endif()
 
 target_link_libraries(db_daemon PRIVATE protobuf::libprotobuf)
 target_link_libraries(db_client PRIVATE protobuf::libprotobuf)
+
+# -------------------------
+# Tests
+# -------------------------
+
+find_package(GTest REQUIRED)
+
+add_executable(buffer_manager_test
+    src/storage_manager/tests.cpp
+    src/storage_manager/buffer_manager.cpp
+    src/storage_manager/disk_operator.cpp
+)
+
+target_include_directories(buffer_manager_test PRIVATE
+    ${COMMON_INCLUDE_DIRS}
+)
+
+target_compile_features(buffer_manager_test PRIVATE cxx_std_17)
+
+target_link_libraries(buffer_manager_test
+    PRIVATE
+    GTest::gtest_main
+)
+
+include(GoogleTest)
+gtest_discover_tests(buffer_manager_test)

@@ -1,12 +1,13 @@
 #include "headers/buffer_manager.hpp"
 #include "headers/disk_operator.hpp"
+#include "headers/types.hpp"
 #include <stdexcept>
 #include <string>
 
 buffer_manager::buffer_pool::buffer_pool(const std::string &db_filename, const std::string &index_filename, const std::string &wal_filename)
-    : disk_operator(db_filename, index_filename, wal_filename, buffer_manager_types::page_data_size),
-      frames(buffer_manager_types::buffer_size), table(buffer_manager_types::buffer_size), replacement_check_queue(),
-      heap_filepath(db_filename), index_filepath(index_filename) {
+    : frames(buffer_manager_types::buffer_size), table(buffer_manager_types::buffer_size), replacement_check_queue(),
+      disk_operator(db_filename, index_filename, wal_filename, buffer_manager_types::page_data_size), heap_filepath(db_filename),
+      index_filepath(index_filename) {
     std::cout << "BUFFER CREATED";
 }
 
@@ -114,7 +115,6 @@ void buffer_manager::buffer_pool::dp_write_to_wal(wal_types::WAL_entry &wal_entr
 }
 
 void buffer_manager::buffer_pool::dp_write_page(buffer_manager_types::Page *page, diskoperator_types::page_type type) {
-
     disk_operator.write_page(page->page_id, page->page_data, type);
 }
 void buffer_manager::buffer_pool::dp_read_page(buffer_manager_types::Page *page, diskoperator_types::page_type type) {
@@ -122,10 +122,12 @@ void buffer_manager::buffer_pool::dp_read_page(buffer_manager_types::Page *page,
     disk_operator.read_page(page->page_id, page->page_data, type);
 }
 void buffer_manager::buffer_pool::final_write() {
-
     for (auto frame = frames.begin(); frame != frames.end(); ++frame) {
         if (frame->page_id != buffer_manager_types::INVALID_PAGE_ID && frame->dirty_bit) {
             disk_operator.write_page(frame->page_id, frame->page_data, frame->type);
+            frame->dirty_bit = false;
+            un_pin(frame->page_id, diskoperator_types::HEAP_PAGE);
+            frame->page_id = buffer_manager_types::INVALID_PAGE_ID; // empty buffer pool
         }
     }
 }

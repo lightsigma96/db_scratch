@@ -2,6 +2,9 @@
 heap.bin
 index.bin
 wal.bin
+src/storage_manager/test_db_file
+src/storage_manager/test_index_file
+src/storage_manager/test_wal_file
 schema_file.bin
 gdb_output.txt
 gist_control/
