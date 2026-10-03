@@ -40,7 +40,7 @@ class buffer_pool {
     // MUST declare the constructor here if you define it in the cpp
     buffer_pool(const std::string &db_filename, const std::string &index_filename, const std::string &wal_filename);
 
-    buffer_manager_types::Page *page_access(heap_page_types::page_id pid, diskoperator_types::page_type type);
+    [[nodiscard]] buffer_manager_types::Page *page_access(heap_page_types::page_id pid, diskoperator_types::page_type type);
 
     buffer_manager_types::frame_id page_replacement_policy(diskoperator_types::page_type type);
 

@@ -48,9 +48,10 @@ constexpr int MAX_SLOTS = 10;
 
 #pragma pack(push, 1)
 struct PageHeader {
-    int  free_size;
-    int  slot_count     = 0;
-    bool is_initialized = false;
+    int      free_size;
+    int      slot_count     = 0;
+    bool     is_initialized = false;
+    uint16_t lsn            = 0;
 };
 #pragma pack(pop)
 
@@ -79,7 +80,6 @@ struct HeapPage {
 #pragma pack(pop)
 
 struct RID {
-
     page_id pid;
     Slot    slot;
 
@@ -101,7 +101,6 @@ namespace wal_types {
 
 #pragma pack(push, 1)
 struct WAL_entry {
-    uint16_t             LSN;
     heap_page_types::RID rid;
     char                 msg[MAX_QUERY_SIZE_WAL];
 };

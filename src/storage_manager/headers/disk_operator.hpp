@@ -105,7 +105,6 @@ class Disk_operator {
         const size_t total  = strlen(wal_entry.msg) + 1;
         size_t       offset = 0;
 
-        wal_entry.LSN = ++LSN;
         while (offset < total) {
             ssize_t n = write(fileno(wal_file), wal_entry.msg + offset, total - offset);
             if (n < 0) {
