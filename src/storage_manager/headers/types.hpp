@@ -101,8 +101,9 @@ namespace wal_types {
 
 #pragma pack(push, 1)
 struct WAL_entry {
-    heap_page_types::RID rid;
-    char                 msg[MAX_QUERY_SIZE_WAL];
+    std::uint64_t         lsn;
+    heap_page_types::RID  rid;
+    std::uint32_t         row_size;
 };
 #pragma pack(pop)
 } // namespace wal_types
