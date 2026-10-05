@@ -27,7 +27,6 @@ class Disk_operator {
     FILE                 *index_file;
     FILE                 *wal_file;
     int                   PAGE_SIZE;
-    uint16_t              LSN;
 
   public:
     Disk_operator(const std::string &db_filename, const std::string &index_filename, const std::string &wal_filename, int page_size) {
@@ -62,7 +61,6 @@ class Disk_operator {
         index_path    = index_filename;
         wal_file_path = wal_filename;
         PAGE_SIZE     = page_size;
-        LSN           = 0;
     }
 
     void read_page(int pid, char *buffer, diskoperator_types::page_type type) {
