@@ -100,7 +100,7 @@ target_link_libraries(db_client PRIVATE protobuf::libprotobuf)
 find_package(GTest REQUIRED)
 
 add_executable(buffer_manager_test
-    src/storage_manager/tests.cpp
+    tests/storage_manager_test.cpp
     src/storage_manager/buffer_manager.cpp
     src/storage_manager/disk_operator.cpp
 )
