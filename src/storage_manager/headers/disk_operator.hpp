@@ -27,7 +27,6 @@ class Disk_operator {
     FILE                 *index_file;
     FILE                 *wal_file;
     int                   PAGE_SIZE;
-    uint16_t              LSN;
 
   public:
     Disk_operator(const std::string &db_filename, const std::string &index_filename, const std::string &wal_filename, int page_size) {
@@ -49,11 +48,19 @@ class Disk_operator {
         if (!wal_file) {
             throw std::runtime_error("Could not open wal file");
         }
+        if (std::fseeko(wal_file, 0, SEEK_END) != 0)
+            throw std::runtime_error("Could not seek WAL");
+        if (ftello(wal_file) == 0) {
+            const std::uint64_t invalid_offset = 0;
+            if (fwrite(&invalid_offset, sizeof(invalid_offset), 1, wal_file) != 1)
+                throw std::runtime_error("Could not initialize WAL header");
+            fflush(wal_file);
+            fsync(fileno(wal_file));
+        }
         db_path       = db_filename;
         index_path    = index_filename;
         wal_file_path = wal_filename;
         PAGE_SIZE     = page_size;
-        LSN           = 0;
     }
 
     void read_page(int pid, char *buffer, diskoperator_types::page_type type) {
@@ -101,24 +108,37 @@ class Disk_operator {
         fsync(file->_fileno);
     }
 
-    void write_to_wal(wal_types::WAL_entry &wal_entry) {
-        const size_t total  = strlen(wal_entry.msg) + 1;
-        size_t       offset = 0;
+    using WALDiskRecord = wal_types::WAL_entry;
 
-        while (offset < total) {
-            ssize_t n = write(fileno(wal_file), wal_entry.msg + offset, total - offset);
-            if (n < 0) {
-                if (errno == EINTR)
-                    continue;
-                throw std::runtime_error("Could not write WAL entry");
-            }
-            if (n == 0)
-                throw std::runtime_error("WAL write returned 0 bytes");
-            offset += static_cast<size_t>(n);
-        }
+    void write_to_wal(const WALDiskRecord &record, const char *row_bytes) {
+        const std::uint64_t record_offset = static_cast<std::uint64_t>(ftello(wal_file));
+        if (record_offset < sizeof(std::uint64_t))
+            throw std::runtime_error("WAL file is missing its header");
 
-        fflush(wal_file);
-        fsync(fileno(wal_file));
+        if (fseeko(wal_file, 0, SEEK_END) != 0)
+            throw std::runtime_error("Could not seek WAL end");
+
+        if (fwrite(&record, sizeof(record), 1, wal_file) != 1)
+            throw std::runtime_error("Could not write WAL record");
+
+        if (record.row_size > 0 &&
+            fwrite(row_bytes, record.row_size, 1, wal_file) != 1)
+            throw std::runtime_error("Could not write WAL row");
+
+        if (fflush(wal_file) != 0 || fsync(fileno(wal_file)) != 0)
+            throw std::runtime_error("Could not fsync WAL");
+
+        if (fseeko(wal_file, 0, SEEK_SET) != 0)
+            throw std::runtime_error("Could not seek WAL header");
+
+        if (fwrite(&record_offset, sizeof(record_offset), 1, wal_file) != 1)
+            throw std::runtime_error("Could not update WAL header");
+
+        if (fflush(wal_file) != 0 || fsync(fileno(wal_file)) != 0)
+            throw std::runtime_error("Could not fsync WAL header");
+
+        if (fseeko(wal_file, 0, SEEK_END) != 0)
+            throw std::runtime_error("Could not restore WAL end position");
     }
 
     uintmax_t last_pid(diskoperator_types::page_type type) {

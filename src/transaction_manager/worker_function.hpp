@@ -123,7 +123,7 @@ static client_server_common::Response DB_Pipeline(schema::schema_manager &sch_ma
     } else if (auto *p = std::get_if<parser_types::INSERT_AST>(&ast)) {
         if (input.schema_name() != "") {
             planner::plan_answer pa =
-                planner::insert_plan(buff_pool, access_methods, sch_ma, *p, curr_root, input.schema_name(), wal, input.input().c_str());
+                planner::insert_plan(buff_pool, access_methods, sch_ma, *p, curr_root, input.schema_name(), wal);
             response_obj.set_query_type(client_server_common::INSERT_QUERY);
             response_obj.set_transaction_complete(pa.operation_complete);
         }

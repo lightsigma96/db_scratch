@@ -16,7 +16,7 @@ struct transaction_result {
 
 transaction_result create_entry(buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,
                                 const access_methods_types::row_t &row, std::vector<size_t> row_data_sizes,
-                                index_write::root_struct *curr_root, bool use_index, WAL::WAL &wal, const char *operation);
+                                index_write::root_struct *curr_root, bool use_index, WAL::WAL &wal);
 } // namespace insert
 
 #endif
