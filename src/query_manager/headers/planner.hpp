@@ -204,7 +204,7 @@ class Insert : public Operator {
   public:
     Insert(schema::tables_attrs &tn, Operator *next_op, parser_types::INSERT_AST &ast, access_methods::Access_methods &am,
            buffer_manager::buffer_pool &buff_pool, index_write::root_struct &curr_root, std::vector<size_t> data_size_arr, WAL::WAL &wal)
-        : next_op(next_op), ast(ast), am(am), buff_pool(buff_pool), curr_root(curr_root), wal(wal), operation(operation),
+        : next_op(next_op), ast(ast), am(am), buff_pool(buff_pool), curr_root(curr_root), wal(wal),
           data_size_arr(data_size_arr) {
     }
 
