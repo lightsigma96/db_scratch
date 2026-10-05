@@ -110,7 +110,7 @@ uintmax_t buffer_manager::buffer_pool::get_last_pid(diskoperator_types::page_typ
     return lpid;
 }
 
-void buffer_manager::buffer_pool::dp_write_to_wal(const Disk_operator::WALDiskRecord &record, const char *row_bytes) {
+void buffer_manager::buffer_pool::dp_write_to_wal(const wal_types::WAL_entry &record, const char *row_bytes) {
     disk_operator.write_to_wal(record, row_bytes);
 }
 
