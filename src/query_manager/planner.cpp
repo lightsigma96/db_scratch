@@ -65,8 +65,7 @@ planner::plan_answer planner::select_plan(buffer_manager::buffer_pool &buff_pool
 
 planner::plan_answer planner::insert_plan(buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,
                                           schema::schema_manager &sch_man, parser_types::INSERT_AST &ast,
-                                          index_write::root_struct &curr_root, std::string schema_name, WAL::WAL &wal,
-                                           ) {
+                                          index_write::root_struct &curr_root, std::string schema_name, WAL::WAL &wal) {
 
     std::vector<access_methods_types::row_t>        inserted_rows;
     std::optional<std::vector<schema::ENTITY_TYPE>> table_find = sch_man.entity_find(schema::TABLE, ast.table_name, schema_name);
