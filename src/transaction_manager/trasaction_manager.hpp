@@ -7,9 +7,6 @@
 #include <thread>
 #include <vector>
 
-/* Name transaction manager sounds related to only transaction but handles
- * entire concurrency, lock manager and result buffer */
-
 namespace transaction_manager {
 
 class TransactionManager {
@@ -31,7 +28,8 @@ class TransactionManager {
   public:
     TransactionManager(schema::schema_manager &sch_ma, parser::Parser &parser, buffer_manager::buffer_pool &buff_pool,
                        access_methods::Access_methods &access_methods)
-        : buff_pool(buff_pool), access_methods(access_methods), sch_ma(sch_ma), parser(parser), lock_manager(), wal(buff_pool) {
+        : thread_id_seed(0), buff_pool(buff_pool), access_methods(access_methods), sch_ma(sch_ma), parser(parser), lock_manager(),
+          wal(buff_pool, access_methods) {
     }
 
     void IterateOrAddWorker(worker_functions::client &c);
