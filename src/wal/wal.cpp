@@ -97,7 +97,7 @@ void WAL::WAL::apply_redo(const heap_page_types::RID *rid, const char *row_bytes
 
     auto *heap_page = reinterpret_cast<heap_page_types::HeapPage *>(page.page_data);
     std::memcpy(heap_page->data + rid->slot.slot_offset, row_bytes, rid->slot.slot_size);
-    heap_page->page_header.lsn = 0;
+    heap_page->page_header.lsn = static_cast<std::uint16_t>(LSN);
     buff_pool.dp_write_page(&page, diskoperator_types::HEAP_PAGE);
 }
 
