@@ -7,6 +7,7 @@
 #include <string>
 #include <type_traits>
 #include <unistd.h>
+#include <filesystem>
 
 namespace {
 constexpr std::uint64_t WAL_HEADER_SIZE = sizeof(std::uint64_t);
@@ -43,6 +44,8 @@ std::vector<char> WAL::WAL::serialize_row(const access_methods_types::row_t &row
 WAL::WAL::WAL(buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods)
     : buff_pool(buff_pool), access_methods(access_methods), LSN(0) {
     const std::string wal_path = "wal.bin";
+    if (!std::filesystem::exists(wal_path))
+        return;
     std::ifstream wal_file(wal_path, std::ios::binary | std::ios::ate);
     if (!wal_file.is_open())
         return;
