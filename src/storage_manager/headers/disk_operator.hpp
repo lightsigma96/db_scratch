@@ -108,11 +108,7 @@ class Disk_operator {
         fsync(file->_fileno);
     }
 
-    struct WALDiskRecord {
-        std::uint64_t lsn;
-        heap_page_types::RID rid;
-        std::uint32_t row_size;
-    };
+    using WALDiskRecord = wal_types::WAL_entry;
 
     void write_to_wal(const WALDiskRecord &record, const char *row_bytes) {
         const std::uint64_t record_offset = static_cast<std::uint64_t>(ftello(wal_file));
