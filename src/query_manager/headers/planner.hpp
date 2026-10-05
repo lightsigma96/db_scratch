@@ -198,14 +198,12 @@ class Insert : public Operator {
     buffer_manager::buffer_pool    &buff_pool;
     index_write::root_struct       &curr_root;
     WAL::WAL                       &wal;
-    const char                     *operation;
     std::atomic<int>                curr_row = 0;
     std::vector<heap_page_types::RID> inserted_rids;
 
   public:
     Insert(schema::tables_attrs &tn, Operator *next_op, parser_types::INSERT_AST &ast, access_methods::Access_methods &am,
-           buffer_manager::buffer_pool &buff_pool, index_write::root_struct &curr_root, std::vector<size_t> data_size_arr, WAL::WAL &wal,
-           const char *operation)
+           buffer_manager::buffer_pool &buff_pool, index_write::root_struct &curr_root, std::vector<size_t> data_size_arr, WAL::WAL &wal)
         : next_op(next_op), ast(ast), am(am), buff_pool(buff_pool), curr_root(curr_root), wal(wal), operation(operation),
           data_size_arr(data_size_arr) {
     }
@@ -217,7 +215,7 @@ class Insert : public Operator {
         access_methods_types::row_t inserted_row;
         if (curr_row < static_cast<int>(ast.values.size())) {
             insert::transaction_result res =
-                insert::create_entry(buff_pool, am, ast.values[curr_row], data_size_arr, &curr_root, false, wal, operation);
+                insert::create_entry(buff_pool, am, ast.values[curr_row], data_size_arr, &curr_root, false, wal);
             inserted_rids.push_back(res.rid);
             curr_row++;
             return {access_methods_types::SUCCESS, inserted_row, true};
@@ -247,7 +245,7 @@ plan_answer select_plan(buffer_manager::buffer_pool &buff_pool, access_methods::
 
 plan_answer insert_plan(buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods,
                         schema::schema_manager &sch_man, parser_types::INSERT_AST &ast, index_write::root_struct &curr_root,
-                        std::string schema_name, WAL::WAL &wal, const char *operation);
+                        std::string schema_name, WAL::WAL &wal);
 
 }; // namespace planner
 
