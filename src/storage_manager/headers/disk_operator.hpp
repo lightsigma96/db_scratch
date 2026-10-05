@@ -119,12 +119,6 @@ class Disk_operator {
         if (record_offset < sizeof(std::uint64_t))
             throw std::runtime_error("WAL file is missing its header");
 
-        if (fseeko(wal_file, 0, SEEK_SET) != 0)
-            throw std::runtime_error("Could not seek WAL header");
-
-        if (fwrite(&record_offset, sizeof(record_offset), 1, wal_file) != 1)
-            throw std::runtime_error("Could not update WAL header");
-
         if (fseeko(wal_file, 0, SEEK_END) != 0)
             throw std::runtime_error("Could not seek WAL end");
 
@@ -135,9 +129,20 @@ class Disk_operator {
             fwrite(row_bytes, record.row_size, 1, wal_file) != 1)
             throw std::runtime_error("Could not write WAL row");
 
-        fflush(wal_file);
-        if (fsync(fileno(wal_file)) != 0)
+        if (fflush(wal_file) != 0 || fsync(fileno(wal_file)) != 0)
             throw std::runtime_error("Could not fsync WAL");
+
+        if (fseeko(wal_file, 0, SEEK_SET) != 0)
+            throw std::runtime_error("Could not seek WAL header");
+
+        if (fwrite(&record_offset, sizeof(record_offset), 1, wal_file) != 1)
+            throw std::runtime_error("Could not update WAL header");
+
+        if (fflush(wal_file) != 0 || fsync(fileno(wal_file)) != 0)
+            throw std::runtime_error("Could not fsync WAL header");
+
+        if (fseeko(wal_file, 0, SEEK_END) != 0)
+            throw std::runtime_error("Could not restore WAL end position");
     }
 
     uintmax_t last_pid(diskoperator_types::page_type type) {
