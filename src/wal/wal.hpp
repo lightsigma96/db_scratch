@@ -13,12 +13,15 @@ class WAL {
     std::uint64_t                   LSN;
 
     std::vector<char> serialize_row(const access_methods_types::row_t &row);
-    void apply_redo(const heap_page_types::RID *rid, const char *row_bytes);
+    void              apply_redo(const heap_page_types::RID *rid, const char *row_bytes);
 
   public:
     WAL(buffer_manager::buffer_pool &buff_pool, access_methods::Access_methods &access_methods);
 
-    void CommitTransaction(const heap_page_types::RID &rid, const access_methods_types::row_t &row);
-    void ReplayTransaction();
+    void     CommitTransaction(const heap_page_types::RID &rid, const access_methods_types::row_t &row);
+    void     ReplayTransaction();
+    uint64_t get_lsn() {
+        return LSN;
+    };
 };
 } // namespace WAL
