@@ -77,7 +77,7 @@ void WAL::WAL::CommitTransaction(const heap_page_types::RID &rid, const access_m
 
     ++LSN;
 
-    Disk_operator::WALDiskRecord record{};
+    wal_types::WAL_entry record{};
     record.lsn      = LSN;
     record.rid      = rid;
     record.row_size = static_cast<std::uint32_t>(row_bytes.size());
