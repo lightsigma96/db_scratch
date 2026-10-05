@@ -17,7 +17,7 @@ Supported data types:
 - STRING
 - FLOAT
 
-The next goal is to implement WAL and support more SQL quires (like `JOINS` etc).
+The next goal is to support more SQL quires (like `JOINS` etc) and make this durable and robust
 
 ---
 
