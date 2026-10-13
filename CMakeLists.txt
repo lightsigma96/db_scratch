@@ -43,6 +43,7 @@ add_executable(db_daemon
     src/catalog_manager/schema_manager.cpp
 
     src/transaction_manager/transaction_manager.cpp
+    src/transaction_manager/lock_manager.cpp
 )
 
 target_include_directories(db_daemon PRIVATE
@@ -156,3 +157,25 @@ target_link_libraries(parser_test
 )
 
 gtest_discover_tests(parser_test)
+
+
+find_package(Threads REQUIRED)
+
+add_executable(concurrency_test
+    tests/concurrency_test.cpp
+    src/transaction_manager/lock_manager.cpp
+)
+
+target_include_directories(concurrency_test PRIVATE
+    ${COMMON_INCLUDE_DIRS}
+)
+
+target_compile_features(concurrency_test PRIVATE cxx_std_17)
+
+target_link_libraries(concurrency_test
+    PRIVATE
+    GTest::gtest_main
+    Threads::Threads
+)
+
+gtest_discover_tests(concurrency_test)

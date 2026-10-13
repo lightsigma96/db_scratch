@@ -1,47 +1,69 @@
-#include "../src/storage_manager/headers/access_methods.hpp"
-#include "../src/storage_manager/headers/insert.hpp"
-#include "../src/wal/wal.hpp"
+#include "../src/transaction_manager/lock_manager.hpp"
+
 #include <gtest/gtest.h>
-#include <vector>
 
-class TransactionManagerTest : public testing::Test {
-  protected:
-    buffer_manager::buffer_pool    buffer_pool;
-    access_methods::Access_methods access_methods;
-    WAL::WAL                       wal;
+#include <chrono>
+#include <future>
 
-    TransactionManagerTest()
-        : buffer_pool(buffer_manager::buffer_pool("src/storage_manager/test_db_file", "src/storage_manager/test_index_file",
-                                                  "src/storage_manager/test_wal_file")),
-          access_methods(access_methods::Access_methods()), wal(buffer_pool, access_methods) {
-    }
+namespace {
 
-    void SetUp() override {
-    }
+using namespace std::chrono_literals;
 
-    void TearDown() override {
-    }
-};
-
-TEST_F(TransactionManagerTest, Check_LSN_After_Transaction) {
-    access_methods_types::row_t r;
-    r.row.push_back(1);
-    r.row.push_back("name");
-    std::vector<size_t> sizes;
-    sizes.push_back(4);
-    sizes.push_back(4);
-
-    auto res = insert::create_entry(buffer_pool, access_methods, r, sizes, nullptr, false, wal);
-    auto p   = *buffer_pool.page_access(res.rid.pid, diskoperator_types::HEAP_PAGE);
-    auto hp  = reinterpret_cast<heap_page_types::HeapPage *>(&p.page_data);
-    ASSERT_EQ(hp->page_header.lsn, wal.get_lsn());
+heap_page_types::RID make_rid(heap_page_types::page_id page_id,
+                              std::uint16_t slot_offset) {
+    heap_page_types::Slot slot{};
+    slot.slot_offset = slot_offset;
+    return heap_page_types::RID{page_id, slot};
 }
 
-TEST_F(TransactionManagerTest, Offset_Check) {
+} // namespace
+
+TEST(LockManagerTest, WaitsUntilTheCurrentOwnerReleasesTheSameRid) {
+    transaction_manager::LockManager lock_manager;
+    std::uint8_t owner_tid = 1;
+    std::uint8_t waiter_tid = 2;
+    const auto rid = make_rid(7, 64);
+
+    EXPECT_EQ(lock_manager.AcquireLockFromLockTable(owner_tid, rid), owner_tid);
+
+    std::promise<void> attempting_lock;
+    auto attempting_lock_started = attempting_lock.get_future();
+    auto waiter = std::async(std::launch::async, [&] {
+        attempting_lock.set_value();
+        return lock_manager.AcquireLockFromLockTable(waiter_tid, rid);
+    });
+
+    attempting_lock_started.wait();
+    const auto status_before_release = waiter.wait_for(75ms);
+    EXPECT_EQ(status_before_release, std::future_status::timeout);
+
+    lock_manager.ReleaseLockFromLockTable(owner_tid);
+
+    ASSERT_EQ(waiter.wait_for(1s), std::future_status::ready);
+    EXPECT_EQ(waiter.get(), waiter_tid);
+    lock_manager.ReleaseLockFromLockTable(waiter_tid);
 }
 
-TEST_F(TransactionManagerTest, LSN_Check) {
-}
+TEST(LockManagerTest, DifferentRidsCanBeLockedConcurrently) {
+    transaction_manager::LockManager lock_manager;
+    std::uint8_t first_tid = 10;
+    std::uint8_t second_tid = 11;
 
-TEST_F(TransactionManagerTest, WAL_Replay) {
+    const auto first_rid = make_rid(2, 16);
+    const auto second_rid = make_rid(2, 80);
+
+    EXPECT_EQ(lock_manager.AcquireLockFromLockTable(first_tid, first_rid), first_tid);
+
+    auto second_lock = std::async(std::launch::async, [&] {
+        return lock_manager.AcquireLockFromLockTable(second_tid, second_rid);
+    });
+
+    const auto status_before_release = second_lock.wait_for(1s);
+    if (status_before_release == std::future_status::ready) {
+        EXPECT_EQ(second_lock.get(), second_tid);
+        lock_manager.ReleaseLockFromLockTable(second_tid);
+    }
+
+    lock_manager.ReleaseLockFromLockTable(first_tid);
+    EXPECT_EQ(status_before_release, std::future_status::ready);
 }

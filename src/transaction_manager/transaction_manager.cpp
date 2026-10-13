@@ -28,37 +28,3 @@ void transaction_manager::TransactionManager::IterateOrAddWorker(worker_function
                                      std::ref(buff_pool), std::ref(access_methods), std::ref(lock_manager), std::ref(wal));
 }
 
-uint8_t transaction_manager::LockManager::AcquireLockFromLockTable(uint8_t &tid, std::optional<heap_page_types::RID> rid) {
-    std::unique_lock<std::mutex> lock(lock_table_mutex);
-
-    if (rid.has_value()) {
-        while (lock_table_reverse.find(rid.value()) != lock_table_reverse.end()) {
-            lock_table_condvar.wait(lock);
-        }
-        lock_table_reverse[rid.value()] = tid;
-
-        if (rid.has_value()) {
-            lock_table[tid].insert(rid.value());
-        }
-    }
-
-    return tid;
-}
-
-void transaction_manager::LockManager::ReleaseLockFromLockTable(const uint8_t &tid) {
-    std::unique_lock<std::mutex> lock(lock_table_mutex);
-
-    auto if_present_tid = lock_table.find(tid);
-    if (if_present_tid == lock_table.end()) {
-        // INSERT (and other paths) may complete a transaction without acquiring row locks.
-        return;
-    }
-
-    for (const auto &ele : if_present_tid->second) {
-        lock_table_reverse.erase(ele);
-    }
-    lock_table.erase(tid);
-
-    lock.unlock();
-    lock_table_condvar.notify_all();
-}
