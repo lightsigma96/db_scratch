@@ -136,3 +136,23 @@ target_link_libraries(lexer_test
 )
 
 gtest_discover_tests(lexer_test)
+
+add_executable(parser_test
+    tests/parser_test.cpp
+    src/query_manager/parser.cpp
+    src/query_manager/lexer.cpp
+    src/catalog_manager/schema_manager.cpp
+)
+
+target_include_directories(parser_test PRIVATE
+    ${COMMON_INCLUDE_DIRS}
+)
+
+target_compile_features(parser_test PRIVATE cxx_std_17)
+
+target_link_libraries(parser_test
+    PRIVATE
+    GTest::gtest_main
+)
+
+gtest_discover_tests(parser_test)
