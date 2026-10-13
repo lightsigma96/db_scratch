@@ -73,7 +73,6 @@ target_include_directories(db_client PRIVATE
 
 target_compile_features(db_client PRIVATE cxx_std_17)
 
-  
 # -------------------------
 # Warnings
 # -------------------------
@@ -98,6 +97,7 @@ target_link_libraries(db_client PRIVATE protobuf::libprotobuf)
 # -------------------------
 
 find_package(GTest REQUIRED)
+enable_testing()
 
 add_executable(buffer_manager_test
     src/storage_manager/tests.cpp
@@ -118,3 +118,21 @@ target_link_libraries(buffer_manager_test
 
 include(GoogleTest)
 gtest_discover_tests(buffer_manager_test)
+
+add_executable(lexer_test
+    tests/lexer_test.cpp
+    src/query_manager/lexer.cpp
+)
+
+target_include_directories(lexer_test PRIVATE
+    ${COMMON_INCLUDE_DIRS}
+)
+
+target_compile_features(lexer_test PRIVATE cxx_std_17)
+
+target_link_libraries(lexer_test
+    PRIVATE
+    GTest::gtest_main
+)
+
+gtest_discover_tests(lexer_test)
