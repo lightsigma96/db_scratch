@@ -179,3 +179,20 @@ target_link_libraries(concurrency_test
 )
 
 gtest_discover_tests(concurrency_test)
+
+add_executable(planner_filter_test
+    tests/planner_filter_test.cpp
+)
+
+target_include_directories(planner_filter_test PRIVATE
+    ${COMMON_INCLUDE_DIRS}
+)
+
+target_compile_features(planner_filter_test PRIVATE cxx_std_17)
+
+target_link_libraries(planner_filter_test
+    PRIVATE
+    GTest::gtest_main
+)
+
+gtest_discover_tests(planner_filter_test)
