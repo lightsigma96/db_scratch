@@ -6,9 +6,10 @@
 #include <thread>
 
 void transaction_manager::TransactionManager::IterateOrAddWorker(worker_functions::client &c) {
+    std::lock_guard<std::mutex> table_lock(Worker_Table_Mutex);
     for (auto &w : Worker_Table) {
         std::lock_guard<std::mutex> lock(w->mut);
-        if (w->state == worker_functions::IDLE) {
+        if (w->state == worker_functions::IDLE && !w->shutdown_requested) {
             w->state  = worker_functions::BUSY;
             w->client = c;
             w->condvar.notify_one();

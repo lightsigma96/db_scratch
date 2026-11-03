@@ -13,6 +13,7 @@ class TransactionManager {
   private:
     uint8_t                                                       thread_id_seed;
     std::vector<std::unique_ptr<struct worker_functions::Worker>> Worker_Table;
+    std::mutex Worker_Table_Mutex;
     buffer_manager::buffer_pool                                  &buff_pool;
     access_methods::Access_methods                               &access_methods;
     schema::schema_manager                                       &sch_ma;
@@ -29,12 +30,17 @@ class TransactionManager {
     TransactionManager(schema::schema_manager &sch_ma, parser::Parser &parser, buffer_manager::buffer_pool &buff_pool,
                        access_methods::Access_methods &access_methods)
         : thread_id_seed(0), buff_pool(buff_pool), access_methods(access_methods), sch_ma(sch_ma), parser(parser), lock_manager(),
-          wal(buff_pool, access_methods) {
+          wal(buff_pool) {
     }
 
     void IterateOrAddWorker(worker_functions::client &c);
 
     ~TransactionManager() {
+        {
+            std::lock_guard<std::mutex> table_lock(Worker_Table_Mutex);
+            for (auto &worker : Worker_Table)
+                worker->request_shutdown();
+        }
         for (auto &worker : Worker_Table) {
             if (worker->thread.joinable())
                 worker->thread.join();

@@ -8,11 +8,7 @@
 #include "../../src/storage_manager/headers/types.hpp"
 #include "../../src/wal/wal.hpp"
 #include <arpa/inet.h>
-#include <condition_variable>
 #include <cstdio>
-#include <mutex>
-#include <optional>
-#include <thread>
 #include <unistd.h>
 #include <vector>
 
@@ -20,22 +16,9 @@ namespace transaction_manager {
 class LockManager;
 }
 
+#include "worker_state.hpp"
+
 namespace worker_functions {
-
-enum WORKER_STATE { IDLE, BUSY };
-struct client {
-    size_t                        fd;
-    client_server_common::Request client_input;
-};
-
-struct Worker {
-    uint8_t                      thread_id;
-    std::optional<struct client> client;
-    WORKER_STATE                 state = IDLE;
-    std::thread                  thread;
-    std::mutex                   mut;
-    std::condition_variable      condvar;
-};
 
 static void fill_proto_schemas(client_server_common::Response &response, const std::vector<schema::schema_attr> &schemas) {
     for (const auto &schema : schemas) {
@@ -122,8 +105,7 @@ static client_server_common::Response DB_Pipeline(schema::schema_manager &sch_ma
         }
     } else if (auto *p = std::get_if<parser_types::INSERT_AST>(&ast)) {
         if (input.schema_name() != "") {
-            planner::plan_answer pa =
-                planner::insert_plan(buff_pool, access_methods, sch_ma, *p, curr_root, input.schema_name(), wal);
+            planner::plan_answer pa = planner::insert_plan(buff_pool, access_methods, sch_ma, *p, curr_root, input.schema_name(), wal);
             response_obj.set_query_type(client_server_common::INSERT_QUERY);
             response_obj.set_transaction_complete(pa.operation_complete);
         }
@@ -147,14 +129,24 @@ inline void Worker(Worker &worker, schema::schema_manager &sch_ma, parser::Parse
 
         std::unique_lock<std::mutex> lock(worker.mut);
 
-        worker.condvar.wait(lock, [&] { return worker.state == BUSY; });
+        if (!worker.wait_for_request(lock))
+            return;
 
         const int client_fd = static_cast<int>(worker.client->fd);
         auto      req       = worker.client->client_input;
         lock.unlock();
 
-        uint8_t                        tid      = lock_manager.get_transaction_id();
-        client_server_common::Response response = DB_Pipeline(sch_ma, parser, buff_pool, access_methods, req, tid, lock_manager, wal);
+        uint8_t tid = lock_manager.get_transaction_id();
+        client_server_common::Response response;
+        try {
+            response = DB_Pipeline(sch_ma, parser, buff_pool, access_methods,
+                                   req, tid, lock_manager, wal);
+        } catch (...) {
+            // Keep the worker alive and release any locks acquired before the
+            // failed statement.
+            response.set_query_type(client_server_common::UNKNOWN);
+            response.set_transaction_complete(false);
+        }
         lock_manager.ReleaseLockFromLockTable(tid);
 
         std::string response_payload;
@@ -172,6 +164,7 @@ inline void Worker(Worker &worker, schema::schema_manager &sch_ma, parser::Parse
         worker.client = std::nullopt;
         worker.state  = IDLE;
         lock.unlock();
+        worker.condvar.notify_all();
     }
 }
 

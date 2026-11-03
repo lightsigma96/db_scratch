@@ -196,3 +196,64 @@ target_link_libraries(planner_filter_test
 )
 
 gtest_discover_tests(planner_filter_test)
+
+
+add_executable(wal_test
+    tests/wal_test.cpp
+    src/storage_manager/buffer_manager.cpp
+    src/wal/wal.cpp
+)
+
+target_include_directories(wal_test PRIVATE
+    ${COMMON_INCLUDE_DIRS}
+)
+
+target_compile_features(wal_test PRIVATE cxx_std_17)
+
+target_link_libraries(wal_test
+    PRIVATE
+    GTest::gtest_main
+    Threads::Threads
+)
+
+gtest_discover_tests(wal_test)
+
+
+add_executable(worker_lifecycle_test
+    tests/worker_lifecycle_test.cpp
+)
+
+target_include_directories(worker_lifecycle_test PRIVATE
+    ${COMMON_INCLUDE_DIRS}
+)
+
+target_compile_features(worker_lifecycle_test PRIVATE cxx_std_17)
+
+target_link_libraries(worker_lifecycle_test
+    PRIVATE
+    GTest::gtest_main
+    Threads::Threads
+    protobuf::libprotobuf
+)
+
+gtest_discover_tests(worker_lifecycle_test)
+
+
+add_executable(buffer_pool_concurrency_test
+    tests/buffer_pool_concurrency_test.cpp
+    src/storage_manager/buffer_manager.cpp
+)
+
+target_include_directories(buffer_pool_concurrency_test PRIVATE
+    ${COMMON_INCLUDE_DIRS}
+)
+
+target_compile_features(buffer_pool_concurrency_test PRIVATE cxx_std_17)
+
+target_link_libraries(buffer_pool_concurrency_test
+    PRIVATE
+    GTest::gtest_main
+    Threads::Threads
+)
+
+gtest_discover_tests(buffer_pool_concurrency_test)

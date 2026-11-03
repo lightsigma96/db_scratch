@@ -23,9 +23,9 @@ class Disk_operator {
     std::filesystem::path db_path;
     std::filesystem::path index_path;
     std::filesystem::path wal_file_path;
-    FILE                 *db_file;
-    FILE                 *index_file;
-    FILE                 *wal_file;
+    FILE                 *db_file = nullptr;
+    FILE                 *index_file = nullptr;
+    FILE                 *wal_file = nullptr;
     int                   PAGE_SIZE;
 
   public:
@@ -43,6 +43,12 @@ class Disk_operator {
         } else {
             index_file = fopen(index_filename.c_str(), "r+b");
         }
+        if (!db_file || !index_file) {
+            if (db_file) fclose(db_file);
+            if (index_file) fclose(index_file);
+            throw std::runtime_error("Could not open database or index file");
+        }
+
         // Always open WAL: daemon may create/truncate wal.bin before Disk_operator runs.
         wal_file = fopen(wal_filename.c_str(), "a+b");
         if (!wal_file) {
@@ -64,48 +70,54 @@ class Disk_operator {
     }
 
     void read_page(int pid, char *buffer, diskoperator_types::page_type type) {
-        int offset = pid * PAGE_SIZE;
+        FILE *file = nullptr;
+        switch (type) {
+            case diskoperator_types::HEAP_PAGE:
+                file = db_file;
+                break;
+            case diskoperator_types::INDEX_PAGE:
+                file = index_file;
+                break;
+            default:
+                throw std::runtime_error("Unsupported page type for read");
+        }
 
-        if (type == diskoperator_types::HEAP_PAGE) {
-            fseek(db_file, offset, SEEK_SET);
-            if (fread(buffer, PAGE_SIZE, 1, db_file) == -1) {
-                throw std::runtime_error("Could not read page");
-            };
-            std::cout << "\nRead a page\n";
-        } else if (type == diskoperator_types::INDEX_PAGE) {
-            fseek(index_file, offset, SEEK_SET);
-            if (fread(buffer, PAGE_SIZE, 1, index_file) == -1) {
-                throw std::runtime_error("Could not read page");
-            };
-            std::cout << "\nRead a page\n";
+        const off_t offset = static_cast<off_t>(pid) * PAGE_SIZE;
+        if (fseeko(file, offset, SEEK_SET) != 0)
+            throw std::runtime_error("Could not seek page");
+
+        const std::size_t read_count = fread(buffer, PAGE_SIZE, 1, file);
+        if (read_count != 1) {
+            if (feof(file)) {
+                std::memset(buffer, 0, PAGE_SIZE);
+                clearerr(file);
+                return;
+            }
+            throw std::runtime_error("Could not read page");
         }
     }
 
     void write_page(int pid, const char *write_data, diskoperator_types::page_type type) {
-        FILE *file;
+        FILE *file = nullptr;
         switch (type) {
             case diskoperator_types::HEAP_PAGE:
                 file = db_file;
+                break;
             case diskoperator_types::INDEX_PAGE:
                 file = index_file;
+                break;
             default:
-                throw std::runtime_error("ERROR : DISK_OPERATOR couldnt decide file");
+                throw std::runtime_error("Unsupported page type for write");
         }
 
-        int offset = pid * PAGE_SIZE;
-
-        fseek(file, offset, SEEK_SET);
-        if (fwrite(write_data, PAGE_SIZE, 1, file) == 0) {
+        const off_t offset = static_cast<off_t>(pid) * PAGE_SIZE;
+        if (fseeko(file, offset, SEEK_SET) != 0)
+            throw std::runtime_error("Could not seek page");
+        if (fwrite(write_data, PAGE_SIZE, 1, file) != 1)
             throw std::runtime_error("Could not write page");
-        }
 
-        /* if (dirty_bit) {
-            dirty_bit = false;
-        } */
-        //  as every time is bad causes the same overhead for little or large data, this is called very less
-
-        fflush(file);
-        fsync(file->_fileno);
+        if (fflush(file) != 0 || fsync(fileno(file)) != 0)
+            throw std::runtime_error("Could not flush page");
     }
 
     using WALDiskRecord = wal_types::WAL_entry;
@@ -150,9 +162,9 @@ class Disk_operator {
         throw std::runtime_error("ERROR GETTING LAST PID");
     }
     ~Disk_operator() {
-        if (db_file) {
-            fclose(db_file);
-        }
+        if (db_file) fclose(db_file);
+        if (index_file) fclose(index_file);
+        if (wal_file) fclose(wal_file);
     }
 };
 

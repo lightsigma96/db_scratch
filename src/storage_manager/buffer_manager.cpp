@@ -15,7 +15,8 @@ buffer_manager_types::Page *buffer_manager::buffer_pool::page_access(heap_page_t
     if (pid < 0) {
         throw std::runtime_error("NEGATIVE PID RECIEVED");
     }
-    auto it = table.find(pid);
+    const PageKey key = make_key(pid, type);
+    auto it = table.find(key);
 
     if (it != table.end()) {
         frames[it->second].pin_count += 1;
@@ -27,7 +28,7 @@ buffer_manager_types::Page *buffer_manager::buffer_pool::page_access(heap_page_t
                 frames[i].page_id   = pid;
                 frames[i].pin_count = 1;
                 frames[i].type      = type;
-                table[pid]          = i;
+                table[key]          = i;
                 replacement_check_queue.push(i);
                 disk_operator.read_page(pid, frames[i].page_data, type);
                 // heap_page_types::HeapPage *hp = reinterpret_cast<heap_page_types::HeapPage *>(frames[i].page_data);
@@ -42,7 +43,8 @@ buffer_manager_types::Page *buffer_manager::buffer_pool::page_access(heap_page_t
     frames[free_frame_id].type                   = type;
     frames[free_frame_id].dirty_bit              = false;
 
-    table[pid] = free_frame_id;
+    table[key] = free_frame_id;
+    replacement_check_queue.push(free_frame_id);
 
     disk_operator.read_page(pid, frames[free_frame_id].page_data, type);
 
@@ -50,7 +52,7 @@ buffer_manager_types::Page *buffer_manager::buffer_pool::page_access(heap_page_t
 };
 
 void buffer_manager::buffer_pool::un_pin(heap_page_types::page_id pid, diskoperator_types::page_type type) {
-    auto                           page = table.find(pid);
+    auto                           page = table.find(make_key(pid, type));
     buffer_manager_types::frame_id frame_idx;
 
     if (page != table.end()) {
@@ -71,13 +73,13 @@ buffer_manager_types::frame_id buffer_manager::buffer_pool::page_replacement_pol
         buffer_manager_types::frame_id id = replacement_check_queue.front();
         replacement_check_queue.pop();
         if (frames[id].pin_count == 0) {
-            auto it = table.find(frames[id].page_id);
+            const PageKey key = make_key(frames[id].page_id, frames[id].type);
+            auto it = table.find(key);
 
             if (it != table.end()) {
-                if (frames[id].dirty_bit) {
-                    disk_operator.write_page(it->first, frames[id].page_data, frames[id].type);
-                }
-                table.erase(it->first);
+                if (frames[id].dirty_bit)
+                    disk_operator.write_page(frames[id].page_id, frames[id].page_data, frames[id].type);
+                table.erase(it);
             }
             frames[id].page_id   = buffer_manager_types::INVALID_PAGE_ID;
             frames[id].dirty_bit = false;
@@ -126,7 +128,8 @@ void buffer_manager::buffer_pool::final_write() {
         if (frame->page_id != buffer_manager_types::INVALID_PAGE_ID && frame->dirty_bit) {
             disk_operator.write_page(frame->page_id, frame->page_data, frame->type);
             frame->dirty_bit = false;
-            un_pin(frame->page_id, diskoperator_types::HEAP_PAGE);
+            table.erase(make_key(frame->page_id, frame->type));
+            frame->pin_count = 0;
             frame->page_id = buffer_manager_types::INVALID_PAGE_ID; // empty buffer pool
         }
     }
