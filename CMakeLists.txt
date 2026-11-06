@@ -44,6 +44,8 @@ add_executable(db_daemon
 
     src/transaction_manager/transaction_manager.cpp
     src/transaction_manager/lock_manager.cpp
+
+    src/wal/wal.cpp
 )
 
 target_include_directories(db_daemon PRIVATE
@@ -101,9 +103,8 @@ find_package(GTest REQUIRED)
 enable_testing()
 
 add_executable(buffer_manager_test
-    src/storage_manager/tests.cpp
+    tests/storage_manager_test.cpp
     src/storage_manager/buffer_manager.cpp
-    src/storage_manager/disk_operator.cpp
 )
 
 target_include_directories(buffer_manager_test PRIVATE
@@ -221,6 +222,7 @@ gtest_discover_tests(wal_test)
 
 add_executable(worker_lifecycle_test
     tests/worker_lifecycle_test.cpp
+    proto/client_server_common.pb.cc
 )
 
 target_include_directories(worker_lifecycle_test PRIVATE

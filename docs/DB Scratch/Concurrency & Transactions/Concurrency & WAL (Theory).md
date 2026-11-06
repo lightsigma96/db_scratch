@@ -11,7 +11,6 @@ Serializability can be implemented via *2PL, MVCC, OCC*:
 - 2PL : Uses locks over data structures to commit transactions and releases atomically.
 - MVCC : Does not use locks, but use state of database to ensure consistency.
 - OCC : Does not use locks or states, ensures safety by rolling back operations causing harm.
-
 ##### Locking and Latching
 
 Every lock is associated with a transaction.

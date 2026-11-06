@@ -1,14 +1,37 @@
 #include "headers/buffer_manager.hpp"
 #include "headers/disk_operator.hpp"
 #include "headers/types.hpp"
+#include <mutex>
 #include <stdexcept>
-#include <string>
+#include <unistd.h>
 
-buffer_manager::buffer_pool::buffer_pool(const std::string &db_filename, const std::string &index_filename, const std::string &wal_filename)
-    : frames(buffer_manager_types::buffer_size), table(buffer_manager_types::buffer_size), replacement_check_queue(),
-      disk_operator(db_filename, index_filename, wal_filename, buffer_manager_types::page_data_size), heap_filepath(db_filename),
-      index_filepath(index_filename) {
-    std::cout << "BUFFER CREATED";
+void buffer_manager::buffer_pool::AcquireBufferPoolLock(std::unique_ptr<buffer_manager_types::BPLock> &thread) {
+    /* buffer_pool_lock size not 0 means atleast one lock should be present inside the queue */
+    if (buffer_pool_lock.size() != 0) {
+        buffer_pool_lock.push_back(thread);
+        std::unique_lock<std::mutex> mutex(thread->mut);
+        thread->cond_var.wait(mutex);
+        return;
+    }
+}
+
+void UnlockBufferPoolLock(std::unique_ptr<buffer_manager_types::BPLock> &thread) {
+    thread->mut.unlock();
+};
+
+void buffer_manager::buffer_pool::ProcessBufferPollLock() {
+    auto &front_lock = buffer_pool_lock.front();
+    /* Process Locks in a bunch until a write lock is found, in single call either process single write lock or bunch/one read lock */
+    while (1) {
+        front_lock.get()->cond_var.notify_one(); // only one thread waits on this
+        buffer_pool_lock.pop_back();             // AI verify
+
+        if (front_lock.get()->lock_type != buffer_manager_types::WRITE_LOCK || buffer_pool_lock.size() != 0) {
+            return;
+        }
+
+        front_lock = buffer_pool_lock.front();
+    }
 }
 
 buffer_manager_types::Page *buffer_manager::buffer_pool::page_access(heap_page_types::page_id pid, diskoperator_types::page_type type) {
@@ -16,7 +39,7 @@ buffer_manager_types::Page *buffer_manager::buffer_pool::page_access(heap_page_t
         throw std::runtime_error("NEGATIVE PID RECIEVED");
     }
     const PageKey key = make_key(pid, type);
-    auto it = table.find(key);
+    auto          it  = table.find(key);
 
     if (it != table.end()) {
         frames[it->second].pin_count += 1;
@@ -74,7 +97,7 @@ buffer_manager_types::frame_id buffer_manager::buffer_pool::page_replacement_pol
         replacement_check_queue.pop();
         if (frames[id].pin_count == 0) {
             const PageKey key = make_key(frames[id].page_id, frames[id].type);
-            auto it = table.find(key);
+            auto          it  = table.find(key);
 
             if (it != table.end()) {
                 if (frames[id].dirty_bit)
@@ -130,7 +153,7 @@ void buffer_manager::buffer_pool::final_write() {
             frame->dirty_bit = false;
             table.erase(make_key(frame->page_id, frame->type));
             frame->pin_count = 0;
-            frame->page_id = buffer_manager_types::INVALID_PAGE_ID; // empty buffer pool
+            frame->page_id   = buffer_manager_types::INVALID_PAGE_ID; // empty buffer pool
         }
     }
 }

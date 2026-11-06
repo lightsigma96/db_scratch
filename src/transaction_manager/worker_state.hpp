@@ -20,7 +20,7 @@ struct client {
 
 struct Worker {
     std::uint8_t thread_id = 0;
-    std::optional<client> client;
+    std::optional<client> assigned_client;
     WORKER_STATE state = IDLE;
     std::thread thread;
     std::mutex mut;

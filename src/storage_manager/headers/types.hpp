@@ -2,11 +2,13 @@
 #define STORAGE_TYPES
 
 #include <assert.h>
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <iostream>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <stdint.h>
@@ -28,6 +30,14 @@ typedef size_t        frame_id;
 constexpr frame_id    INVALID_FRAME   = static_cast<frame_id>(-1);
 constexpr frame_id    INVALID_PAGE_ID = static_cast<frame_id>(-1);
 constexpr std::size_t page_data_size  = 4096;
+
+enum BPLock_Type { READ_LOCK, WRITE_LOCK };
+
+struct BPLock {
+    BPLock_Type             lock_type;
+    std::condition_variable cond_var;
+    std::mutex              mut;
+};
 
 struct Page {
     char                          page_data[page_data_size];

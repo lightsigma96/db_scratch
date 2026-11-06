@@ -132,15 +132,14 @@ inline void Worker(Worker &worker, schema::schema_manager &sch_ma, parser::Parse
         if (!worker.wait_for_request(lock))
             return;
 
-        const int client_fd = static_cast<int>(worker.client->fd);
-        auto      req       = worker.client->client_input;
+        const int client_fd = static_cast<int>(worker.assigned_client->fd);
+        auto      req       = worker.assigned_client->client_input;
         lock.unlock();
 
-        uint8_t tid = lock_manager.get_transaction_id();
+        uint8_t                        tid = lock_manager.get_transaction_id();
         client_server_common::Response response;
         try {
-            response = DB_Pipeline(sch_ma, parser, buff_pool, access_methods,
-                                   req, tid, lock_manager, wal);
+            response = DB_Pipeline(sch_ma, parser, buff_pool, access_methods, req, tid, lock_manager, wal);
         } catch (...) {
             // Keep the worker alive and release any locks acquired before the
             // failed statement.
@@ -161,8 +160,8 @@ inline void Worker(Worker &worker, schema::schema_manager &sch_ma, parser::Parse
         close(client_fd);
 
         lock.lock();
-        worker.client = std::nullopt;
-        worker.state  = IDLE;
+        worker.assigned_client = std::nullopt;
+        worker.state           = IDLE;
         lock.unlock();
         worker.condvar.notify_all();
     }

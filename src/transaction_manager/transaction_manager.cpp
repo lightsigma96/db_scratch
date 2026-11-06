@@ -11,7 +11,7 @@ void transaction_manager::TransactionManager::IterateOrAddWorker(worker_function
         std::lock_guard<std::mutex> lock(w->mut);
         if (w->state == worker_functions::IDLE && !w->shutdown_requested) {
             w->state  = worker_functions::BUSY;
-            w->client = c;
+            w->assigned_client = c;
             w->condvar.notify_one();
             return;
         }
@@ -19,7 +19,7 @@ void transaction_manager::TransactionManager::IterateOrAddWorker(worker_function
 
     auto w       = std::make_unique<struct worker_functions::Worker>();
     w->state     = worker_functions::BUSY;
-    w->client    = c;
+    w->assigned_client = c;
     w->thread_id = get_thread_id();
 
     auto *worker_ptr = w.get();

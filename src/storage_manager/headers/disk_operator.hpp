@@ -49,12 +49,18 @@ class Disk_operator {
             throw std::runtime_error("Could not open database or index file");
         }
 
-        // Always open WAL: daemon may create/truncate wal.bin before Disk_operator runs.
-        wal_file = fopen(wal_filename.c_str(), "a+b");
+        // Use r+/w+ so header updates at offset 0 are not forced to EOF (unlike a+).
+        if (!std::filesystem::exists(wal_filename)) {
+            wal_file = fopen(wal_filename.c_str(), "w+b");
+        } else {
+            wal_file = fopen(wal_filename.c_str(), "r+b");
+        }
         if (!wal_file) {
+            if (db_file) fclose(db_file);
+            if (index_file) fclose(index_file);
             throw std::runtime_error("Could not open wal file");
         }
-        if (std::fseeko(wal_file, 0, SEEK_END) != 0)
+        if (fseeko(wal_file, 0, SEEK_END) != 0)
             throw std::runtime_error("Could not seek WAL");
         if (ftello(wal_file) == 0) {
             const std::uint64_t invalid_offset = 0;
@@ -123,12 +129,12 @@ class Disk_operator {
     using WALDiskRecord = wal_types::WAL_entry;
 
     void write_to_wal(const WALDiskRecord &record, const char *row_bytes) {
+        if (fseeko(wal_file, 0, SEEK_END) != 0)
+            throw std::runtime_error("Could not seek WAL end");
+
         const std::uint64_t record_offset = static_cast<std::uint64_t>(ftello(wal_file));
         if (record_offset < sizeof(std::uint64_t))
             throw std::runtime_error("WAL file is missing its header");
-
-        if (fseeko(wal_file, 0, SEEK_END) != 0)
-            throw std::runtime_error("Could not seek WAL end");
 
         if (fwrite(&record, sizeof(record), 1, wal_file) != 1)
             throw std::runtime_error("Could not write WAL record");

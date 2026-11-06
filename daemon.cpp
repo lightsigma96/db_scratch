@@ -92,6 +92,7 @@ int main() {
                 if (!(poll_table[fd].revents & POLLIN))
                     continue;
 
+                /* Accept New Connections */
                 if (fd == 0) {
                     int new_client_fd = accept(listen_fd, NULL, NULL);
 
@@ -110,6 +111,7 @@ int main() {
                     continue;
                 }
 
+                /* Read existing connection */
                 uint32_t request_size_net;
 
                 if (!server::recv_all(poll_table[fd].fd, &request_size_net, sizeof(request_size_net))) {
@@ -145,10 +147,14 @@ int main() {
 
                 worker_functions::client c = {static_cast<size_t>(poll_table[fd].fd), client_req};
 
+                /* Assign a new thread for this connection */
                 transaction_manager.IterateOrAddWorker(c);
                 poll_table[fd] = poll_table[nfds - 1];
                 nfds--;
                 fd--;
+
+                /* Handle shared memory, buffer_pool */
+                buff_pool.ProcessBufferPollLock();
             }
         } else if (ready_fds < 0) {
             throw std::runtime_error("SOME ERROR IN MAIN LOOP");
