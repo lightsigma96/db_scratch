@@ -5,8 +5,9 @@
 #include "types.hpp"
 #include <condition_variable>
 #include <cstdint>
-#include <functional>
+#include <deque>
 #include <memory>
+#include <mutex>
 #include <queue>
 #include <string>
 #include <unistd.h>
@@ -28,19 +29,18 @@ class buffer_pool {
 
     Table_t table;
 
-    Queue_t                                                                            replacement_check_queue;
-    Disk_operator                                                                      disk_operator;
-    const std::string                                                                 &heap_filepath;
-    const std::string                                                                 &index_filepath;
-    std::vector<std::reference_wrapper<std::unique_ptr<buffer_manager_types::BPLock>>> buffer_pool_lock;
+    Queue_t                                       replacement_check_queue;
+    Disk_operator                                 disk_operator;
+    const std::string                            &heap_filepath;
+    const std::string                            &index_filepath;
+    std::mutex                                    lock_queue_mutex;
+    std::deque<buffer_manager_types::BPLock *>    buffer_pool_lock;
 
     static PageKey make_key(heap_page_types::page_id pid, diskoperator_types::page_type type) {
         return (static_cast<PageKey>(type) << 32) | static_cast<std::uint32_t>(pid);
     }
 
   public:
-    // std::mutex buffer_pool_lock;
-
     // MUST declare the constructor here if you define it in the cpp
     buffer_pool(const std::string &db_filename, const std::string &index_filename, const std::string &wal_filename)
         : frames(buffer_manager_types::buffer_size), table(buffer_manager_types::buffer_size), replacement_check_queue(),
@@ -84,6 +84,28 @@ class buffer_pool {
         final_write();
     }
 };
+
+/* RAII wrapper around AcquireBufferPoolLock / UnlockBufferPoolLock. */
+class BufferPoolLockGuard {
+  public:
+    BufferPoolLockGuard(buffer_pool &pool, buffer_manager_types::BPLock_Type type) : pool(pool) {
+        lock           = std::make_unique<buffer_manager_types::BPLock>();
+        lock->lock_type = type;
+        pool.AcquireBufferPoolLock(lock);
+    }
+
+    ~BufferPoolLockGuard() {
+        pool.UnlockBufferPoolLock(lock);
+    }
+
+    BufferPoolLockGuard(const BufferPoolLockGuard &)            = delete;
+    BufferPoolLockGuard &operator=(const BufferPoolLockGuard &) = delete;
+
+  private:
+    buffer_pool                                      &pool;
+    std::unique_ptr<buffer_manager_types::BPLock>     lock;
+};
+
 }; // namespace buffer_manager
 
 #endif

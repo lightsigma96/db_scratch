@@ -94,7 +94,7 @@ void WAL::WAL::CommitTransaction(const heap_page_types::RID &rid, const access_m
     buff_pool.dp_write_to_wal(record, row_bytes.data());
     LSN = next_lsn;
 
-    std::lock_guard<std::mutex> guard(buff_pool.buffer_pool_lock);
+    buffer_manager::BufferPoolLockGuard guard(buff_pool, buffer_manager_types::WRITE_LOCK);
     buffer_manager_types::Page *page =
         buff_pool.page_access(rid.pid, diskoperator_types::HEAP_PAGE);
     try {
@@ -111,7 +111,7 @@ void WAL::WAL::CommitTransaction(const heap_page_types::RID &rid, const access_m
 
 void WAL::WAL::apply_redo(const heap_page_types::RID *rid, const char *row_bytes,
                           std::uint64_t record_lsn) {
-    std::lock_guard<std::mutex> guard(buff_pool.buffer_pool_lock);
+    buffer_manager::BufferPoolLockGuard guard(buff_pool, buffer_manager_types::WRITE_LOCK);
     buffer_manager_types::Page *page =
         buff_pool.page_access(rid->pid, diskoperator_types::HEAP_PAGE);
     try {
@@ -179,7 +179,7 @@ void WAL::WAL::ReplayTransaction() {
 
         bool needs_redo = false;
         {
-            std::lock_guard<std::mutex> guard(buff_pool.buffer_pool_lock);
+            buffer_manager::BufferPoolLockGuard guard(buff_pool, buffer_manager_types::READ_LOCK);
             buffer_manager_types::Page *page =
                 buff_pool.page_access(record.rid.pid, diskoperator_types::HEAP_PAGE);
             const auto *heap_page =

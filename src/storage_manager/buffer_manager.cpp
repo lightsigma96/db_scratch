@@ -1,36 +1,68 @@
 #include "headers/buffer_manager.hpp"
 #include "headers/disk_operator.hpp"
 #include "headers/types.hpp"
+#include <algorithm>
 #include <mutex>
 #include <stdexcept>
 #include <unistd.h>
 
 void buffer_manager::buffer_pool::AcquireBufferPoolLock(std::unique_ptr<buffer_manager_types::BPLock> &thread) {
-    /* buffer_pool_lock size not 0 means atleast one lock should be present inside the queue */
-    if (buffer_pool_lock.size() != 0) {
-        buffer_pool_lock.push_back(thread);
-        std::unique_lock<std::mutex> mutex(thread->mut);
-        thread->cond_var.wait(mutex);
-        return;
+    /* Enqueue; alone at the front self-grants, otherwise wait for ProcessBufferPollLock. */
+    std::unique_lock<std::mutex> lock(thread->mut);
+    bool                         should_wait = false;
+    {
+        std::lock_guard<std::mutex> queue_lock(lock_queue_mutex);
+        should_wait       = !buffer_pool_lock.empty();
+        thread->waiting   = should_wait;
+        buffer_pool_lock.push_back(thread.get());
     }
+
+    if (should_wait) {
+        thread->cond_var.wait(lock, [&thread] { return !thread->waiting; });
+    }
+    /* Leave mutex locked; UnlockBufferPoolLock releases it. */
+    lock.release();
 }
 
-void UnlockBufferPoolLock(std::unique_ptr<buffer_manager_types::BPLock> &thread) {
+void buffer_manager::buffer_pool::UnlockBufferPoolLock(std::unique_ptr<buffer_manager_types::BPLock> &thread) {
+    {
+        std::lock_guard<std::mutex> queue_lock(lock_queue_mutex);
+        auto                       it = std::find(buffer_pool_lock.begin(), buffer_pool_lock.end(), thread.get());
+        if (it != buffer_pool_lock.end()) {
+            buffer_pool_lock.erase(it);
+        }
+    }
     thread->mut.unlock();
-};
+    /* Grant any waiters that are now eligible at the front of the queue. */
+    ProcessBufferPollLock();
+}
 
 void buffer_manager::buffer_pool::ProcessBufferPollLock() {
-    auto &front_lock = buffer_pool_lock.front();
-    /* Process Locks in a bunch until a write lock is found, in single call either process single write lock or bunch/one read lock */
-    while (1) {
-        front_lock.get()->cond_var.notify_one(); // only one thread waits on this
-        buffer_pool_lock.pop_back();             // AI verify
+    std::lock_guard<std::mutex> queue_lock(lock_queue_mutex);
+    if (buffer_pool_lock.empty()) {
+        return;
+    }
 
-        if (front_lock.get()->lock_type != buffer_manager_types::WRITE_LOCK || buffer_pool_lock.size() != 0) {
-            return;
+    /* Skip holders that already self-granted; Unlock removes them. */
+    if (!buffer_pool_lock.front()->waiting) {
+        return;
+    }
+
+    /* Grant one write, or a consecutive run of reads, then stop. */
+    if (buffer_pool_lock.front()->lock_type == buffer_manager_types::WRITE_LOCK) {
+        buffer_pool_lock.front()->waiting = false;
+        buffer_pool_lock.front()->cond_var.notify_one();
+        return;
+    }
+
+    for (auto *waiter : buffer_pool_lock) {
+        if (waiter->lock_type != buffer_manager_types::READ_LOCK) {
+            break;
         }
-
-        front_lock = buffer_pool_lock.front();
+        if (waiter->waiting) {
+            waiter->waiting = false;
+            waiter->cond_var.notify_one();
+        }
     }
 }
 

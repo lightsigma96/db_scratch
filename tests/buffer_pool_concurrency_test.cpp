@@ -24,9 +24,8 @@ class BufferPoolConcurrencyTest : public testing::Test {
     std::unique_ptr<buffer_manager::buffer_pool> pool;
 
     int BufferContentionFunc() {
-        pool->buffer_pool_lock.lock();
-        auto page = pool->page_access(0, diskoperator_types::HEAP_PAGE);
-        pool->buffer_pool_lock.unlock();
+        buffer_manager::BufferPoolLockGuard guard(*pool, buffer_manager_types::WRITE_LOCK);
+        auto                               *page = pool->page_access(0, diskoperator_types::HEAP_PAGE);
         return page->page_id;
     }
 
@@ -51,7 +50,7 @@ TEST_F(BufferPoolConcurrencyTest, SamePageIdInHeapAndIndexUsesDifferentFrames) {
     buffer_manager_types::Page *heap_page  = nullptr;
     buffer_manager_types::Page *index_page = nullptr;
     {
-        std::lock_guard<std::mutex> guard(pool->buffer_pool_lock);
+        buffer_manager::BufferPoolLockGuard guard(*pool, buffer_manager_types::WRITE_LOCK);
         heap_page  = pool->page_access(0, diskoperator_types::HEAP_PAGE);
         index_page = pool->page_access(0, diskoperator_types::INDEX_PAGE);
 
@@ -83,8 +82,8 @@ TEST_F(BufferPoolConcurrencyTest, ConcurrentPinnedAccessToOnePageIsConsistent) {
     for (int i = 0; i < thread_count; ++i) {
         threads.emplace_back([&] {
             for (int j = 0; j < iterations; ++j) {
-                std::lock_guard<std::mutex> guard(pool->buffer_pool_lock);
-                auto                       *page = pool->page_access(5, diskoperator_types::HEAP_PAGE);
+                buffer_manager::BufferPoolLockGuard guard(*pool, buffer_manager_types::READ_LOCK);
+                auto                               *page = pool->page_access(5, diskoperator_types::HEAP_PAGE);
                 if (page && page->page_id == 5)
                     successful_accesses.fetch_add(1);
                 pool->un_pin(5, diskoperator_types::HEAP_PAGE);
@@ -95,8 +94,8 @@ TEST_F(BufferPoolConcurrencyTest, ConcurrentPinnedAccessToOnePageIsConsistent) {
         thread.join();
 
     EXPECT_EQ(successful_accesses.load(), thread_count * iterations);
-    std::lock_guard<std::mutex> guard(pool->buffer_pool_lock);
-    auto                       *page = pool->page_access(5, diskoperator_types::HEAP_PAGE);
+    buffer_manager::BufferPoolLockGuard guard(*pool, buffer_manager_types::WRITE_LOCK);
+    auto                               *page = pool->page_access(5, diskoperator_types::HEAP_PAGE);
     EXPECT_EQ(page->pin_count, 1);
     pool->un_pin(5, diskoperator_types::HEAP_PAGE);
     EXPECT_EQ(page->pin_count, 0);
