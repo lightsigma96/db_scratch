@@ -1,7 +1,6 @@
 #include "headers/buffer_manager.hpp"
 #include "headers/disk_operator.hpp"
 #include "headers/types.hpp"
-#include <algorithm>
 #include <mutex>
 #include <stdexcept>
 #include <unistd.h>
@@ -11,18 +10,20 @@
  * wait. Note : Currently assuming that concurrent writes are being done on same page.
  */
 void buffer_manager::buffer_pool::AcquireBufferPoolLock(std::unique_ptr<buffer_manager_types::BPLock> &thread) {
-    // Increament waiting writers
-    if (thread->lock_type == buffer_manager_types::WRITE_LOCK) {
-        writers_waiting.fetch_add(1);
-    }
 
     /* if writers waiting, buffer all types of threads.
      * the lock used here is sacrifical_lock, meaning only for sake of cond_var.
      */
-    lock_queue_mutex.lock();
-    if (writers_waiting > 0) {
+    if (writers_waiting > 0 || thread->lock_type == buffer_manager_types::WRITE_LOCK) {
+
+        lock_queue_mutex.lock();
         buffer_pool_lock.push_back(thread.get());
+        // Increament waiting writers
+        if (thread->lock_type == buffer_manager_types::WRITE_LOCK) {
+            writers_waiting.fetch_add(1);
+        }
         lock_queue_mutex.unlock();
+
         std::unique_lock<std::mutex> sacrifical_lock(thread->mut);
         thread->cond_var.wait(sacrifical_lock);
     }
@@ -42,6 +43,8 @@ void buffer_manager::buffer_pool::UnlockBufferPoolLock() {
         buffer_pool_lock.pop_front();
         front = buffer_pool_lock.front();
     }
+
+    lock_queue_mutex.unlock();
     // notify next writer
     front->cond_var.notify_one();
 }

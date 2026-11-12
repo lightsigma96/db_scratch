@@ -47,7 +47,8 @@ Few Changes,
 - This whole thing will also mostly probably remove the Process Buffer lock function.
 
 - If there are no writes waiting, reads can directly proceed, ***Consistent data will be seen by them logically***.
-- If there is write waiting, reads has to be buffered, ***As those reads might not see consistent data if they run before write.***
+- If there is write waiting, reads/writes has to be buffered, ***As those reads might not see consistent data if they run before write.***
+- If no writes are waiting, writes are still buffered, until they finish at which point they would be removed by unlock.
 - Basically write is the point where data is going to change, hence reads after that should wait for it.
 - When a writer arrives, it is buffered, when that write calls unlock only then it is removed from the buffer and writer_waiting is decremented. 
 
