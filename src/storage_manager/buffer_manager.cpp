@@ -6,49 +6,56 @@
 #include <stdexcept>
 #include <unistd.h>
 
+/*
+ * This function allows you to enter the critical section if no writer is waiting, if there is even 1, then you are buffered and should
+ * wait. Note : Currently assuming that concurrent writes are being done on same page.
+ */
 void buffer_manager::buffer_pool::AcquireBufferPoolLock(std::unique_ptr<buffer_manager_types::BPLock> &thread) {
-    /* Enqueue; alone at the front self-grants, otherwise wait for ProcessBufferPollLock. */
-    std::unique_lock<std::mutex> lock(thread->mut);
-    bool                         should_wait = false;
-    {
-        std::lock_guard<std::mutex> queue_lock(lock_queue_mutex);
-        should_wait       = !buffer_pool_lock.empty();
-        thread->waiting   = should_wait;
+    // Increament waiting writers
+    if (thread->lock_type == buffer_manager_types::WRITE_LOCK) {
+        writers_waiting.fetch_add(1);
+    }
+
+    /* if writers waiting, buffer all types of threads.
+     * the lock used here is sacrifical_lock, meaning only for sake of cond_var.
+     */
+    lock_queue_mutex.lock();
+    if (writers_waiting > 0) {
         buffer_pool_lock.push_back(thread.get());
+        lock_queue_mutex.unlock();
+        std::unique_lock<std::mutex> sacrifical_lock(thread->mut);
+        thread->cond_var.wait(sacrifical_lock);
     }
-
-    if (should_wait) {
-        thread->cond_var.wait(lock, [&thread] { return !thread->waiting; });
-    }
-    /* Leave mutex locked; UnlockBufferPoolLock releases it. */
-    lock.release();
 }
 
-void buffer_manager::buffer_pool::UnlockBufferPoolLock(std::unique_ptr<buffer_manager_types::BPLock> &thread) {
-    {
-        std::lock_guard<std::mutex> queue_lock(lock_queue_mutex);
-        auto                       it = std::find(buffer_pool_lock.begin(), buffer_pool_lock.end(), thread.get());
-        if (it != buffer_pool_lock.end()) {
-            buffer_pool_lock.erase(it);
-        }
+/* Should be called by a writer, ignore readers, pops that writer and process reads after it until a writer is met at which point that
+ * writer would be woken up and this exits */
+void buffer_manager::buffer_pool::UnlockBufferPoolLock() {
+    lock_queue_mutex.lock();
+
+    buffer_pool_lock.pop_front();
+    writers_waiting.fetch_sub(1);
+
+    auto front = buffer_pool_lock.front();
+    while (front->lock_type != buffer_manager_types::WRITE_LOCK) {
+        front->cond_var.notify_one();
+        buffer_pool_lock.pop_front();
+        front = buffer_pool_lock.front();
     }
-    thread->mut.unlock();
-    /* Grant any waiters that are now eligible at the front of the queue. */
-    ProcessBufferPollLock();
+    // notify next writer
+    front->cond_var.notify_one();
 }
 
-void buffer_manager::buffer_pool::ProcessBufferPollLock() {
+/* void buffer_manager::buffer_pool::ProcessBufferPollLock() {
     std::lock_guard<std::mutex> queue_lock(lock_queue_mutex);
     if (buffer_pool_lock.empty()) {
         return;
     }
 
-    /* Skip holders that already self-granted; Unlock removes them. */
     if (!buffer_pool_lock.front()->waiting) {
         return;
     }
 
-    /* Grant one write, or a consecutive run of reads, then stop. */
     if (buffer_pool_lock.front()->lock_type == buffer_manager_types::WRITE_LOCK) {
         buffer_pool_lock.front()->waiting = false;
         buffer_pool_lock.front()->cond_var.notify_one();
@@ -64,7 +71,7 @@ void buffer_manager::buffer_pool::ProcessBufferPollLock() {
             waiter->cond_var.notify_one();
         }
     }
-}
+} */
 
 buffer_manager_types::Page *buffer_manager::buffer_pool::page_access(heap_page_types::page_id pid, diskoperator_types::page_type type) {
     if (pid < 0) {

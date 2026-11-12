@@ -1,3 +1,5 @@
+agent --resume=264abab8-9b5c-4f00-9bd7-c5e8619be56e
+
 Currently storage hasnt been concerned with concurrent requests.
 
 Buffer manager is a part of shared memory, across all threads of DB_Pipeline.
@@ -38,6 +40,16 @@ unlock:
 *Reader/Writer Lock*: specific thing is that these can be read/write locks, if the front is read and next is read too, then both of them and be waked up and pop (this could become a chain), if next is write then don't.
 
 As we now have a system which needs processing of locks periodically, this is done in daemon as buffer pool is shared memory.
+
+Few Changes,
+- Above policy of bunching reads remains, but consecutive reads before write are allowed to directly enter critical section, but reads after write should be buffered.
+- On encountering a write, lock the critical section, and when write calls unlock only then proceed with next reads like above (or if a write then lock again).
+- This whole thing will also mostly probably remove the Process Buffer lock function.
+
+- If there are no writes waiting, reads can directly proceed, ***Consistent data will be seen by them logically***.
+- If there is write waiting, reads has to be buffered, ***As those reads might not see consistent data if they run before write.***
+- Basically write is the point where data is going to change, hence reads after that should wait for it.
+- When a writer arrives, it is buffered, when that write calls unlock only then it is removed from the buffer and writer_waiting is decremented. 
 
 Samples of sched_switch event do not have callchains.
            time    cpu  task name                       wait time  sch delay   run time

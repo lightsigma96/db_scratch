@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 #include <iostream>
+#include <memory>
 #include <mutex>
 #include <stdexcept>
 #include <variant>
@@ -21,12 +22,12 @@ access_methods::Access_methods::heap_scan::scan(std::vector<size_t>             
     while (true) {
         access_methods_types::row_t row;
 
-        char                      *heap_page_data = nullptr;
-        {
-            buffer_manager::BufferPoolLockGuard guard(buff_pool, buffer_manager_types::READ_LOCK);
-            heap_page_data = buff_pool.page_access(curr_pid, diskoperator_types::HEAP_PAGE)->page_data;
-        }
-        heap_page_types::HeapPage *heap_page = reinterpret_cast<heap_page_types::HeapPage *>(heap_page_data);
+        auto lock = std::make_unique<buffer_manager_types::BPLock>();
+        lock->lock_type = buffer_manager_types::READ_LOCK;
+        buff_pool.AcquireBufferPoolLock(lock);
+        char                      *heap_page_data = buff_pool.page_access(curr_pid, diskoperator_types::HEAP_PAGE)->page_data;
+        heap_page_types::HeapPage *heap_page      = reinterpret_cast<heap_page_types::HeapPage *>(heap_page_data);
+        buff_pool.UnlockBufferPoolLock(lock);
 
         if (heap_page == NULL) {
             buff_pool.un_pin(curr_pid, diskoperator_types::HEAP_PAGE);

@@ -37,7 +37,7 @@ struct BPLock {
     BPLock_Type             lock_type;
     std::condition_variable cond_var;
     std::mutex              mut;
-    bool                    waiting = true;
+    // bool                    waiting = true;
 };
 
 struct Page {

@@ -1,5 +1,6 @@
 #include "headers/insert.hpp"
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -9,11 +10,11 @@ insert::transaction_result insert::create_entry(buffer_manager::buffer_pool &buf
 
     uintmax_t last_heap_pid = buff_pool.get_last_pid(diskoperator_types::HEAP_PAGE);
 
-    buffer_manager_types::Page *raw_heap_page = nullptr;
-    {
-        buffer_manager::BufferPoolLockGuard guard(buff_pool, buffer_manager_types::WRITE_LOCK);
-        raw_heap_page = buff_pool.page_access(last_heap_pid, diskoperator_types::HEAP_PAGE);
-    }
+    auto lock = std::make_unique<buffer_manager_types::BPLock>();
+    lock->lock_type = buffer_manager_types::WRITE_LOCK;
+    buff_pool.AcquireBufferPoolLock(lock);
+    buffer_manager_types::Page *raw_heap_page = buff_pool.page_access(last_heap_pid, diskoperator_types::HEAP_PAGE);
+    buff_pool.UnlockBufferPoolLock(lock);
 
     heap_page_types::Slot res_slot = heap_writer::heap_write(raw_heap_page->page_data, row, row_data_sizes);
     raw_heap_page->dirty_bit       = true;

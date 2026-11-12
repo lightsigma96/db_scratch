@@ -4,8 +4,9 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
-#include <mutex>
 #include <limits>
+#include <memory>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -94,7 +95,9 @@ void WAL::WAL::CommitTransaction(const heap_page_types::RID &rid, const access_m
     buff_pool.dp_write_to_wal(record, row_bytes.data());
     LSN = next_lsn;
 
-    buffer_manager::BufferPoolLockGuard guard(buff_pool, buffer_manager_types::WRITE_LOCK);
+    auto lock = std::make_unique<buffer_manager_types::BPLock>();
+    lock->lock_type = buffer_manager_types::WRITE_LOCK;
+    buff_pool.AcquireBufferPoolLock(lock);
     buffer_manager_types::Page *page =
         buff_pool.page_access(rid.pid, diskoperator_types::HEAP_PAGE);
     try {
@@ -103,15 +106,19 @@ void WAL::WAL::CommitTransaction(const heap_page_types::RID &rid, const access_m
         buff_pool.dp_write_page(page, diskoperator_types::HEAP_PAGE);
         page->dirty_bit = false;
         buff_pool.un_pin(rid.pid, diskoperator_types::HEAP_PAGE);
+        buff_pool.UnlockBufferPoolLock(lock);
     } catch (...) {
         buff_pool.un_pin(rid.pid, diskoperator_types::HEAP_PAGE);
+        buff_pool.UnlockBufferPoolLock(lock);
         throw;
     }
 }
 
 void WAL::WAL::apply_redo(const heap_page_types::RID *rid, const char *row_bytes,
                           std::uint64_t record_lsn) {
-    buffer_manager::BufferPoolLockGuard guard(buff_pool, buffer_manager_types::WRITE_LOCK);
+    auto lock = std::make_unique<buffer_manager_types::BPLock>();
+    lock->lock_type = buffer_manager_types::WRITE_LOCK;
+    buff_pool.AcquireBufferPoolLock(lock);
     buffer_manager_types::Page *page =
         buff_pool.page_access(rid->pid, diskoperator_types::HEAP_PAGE);
     try {
@@ -124,8 +131,10 @@ void WAL::WAL::apply_redo(const heap_page_types::RID *rid, const char *row_bytes
         buff_pool.dp_write_page(page, diskoperator_types::HEAP_PAGE);
         page->dirty_bit = false;
         buff_pool.un_pin(rid->pid, diskoperator_types::HEAP_PAGE);
+        buff_pool.UnlockBufferPoolLock(lock);
     } catch (...) {
         buff_pool.un_pin(rid->pid, diskoperator_types::HEAP_PAGE);
+        buff_pool.UnlockBufferPoolLock(lock);
         throw;
     }
 }
@@ -179,13 +188,16 @@ void WAL::WAL::ReplayTransaction() {
 
         bool needs_redo = false;
         {
-            buffer_manager::BufferPoolLockGuard guard(buff_pool, buffer_manager_types::READ_LOCK);
+            auto lock = std::make_unique<buffer_manager_types::BPLock>();
+            lock->lock_type = buffer_manager_types::READ_LOCK;
+            buff_pool.AcquireBufferPoolLock(lock);
             buffer_manager_types::Page *page =
                 buff_pool.page_access(record.rid.pid, diskoperator_types::HEAP_PAGE);
             const auto *heap_page =
                 reinterpret_cast<const heap_page_types::HeapPage *>(page->page_data);
             needs_redo = heap_page->page_header.lsn < record.lsn;
             buff_pool.un_pin(record.rid.pid, diskoperator_types::HEAP_PAGE);
+            buff_pool.UnlockBufferPoolLock(lock);
         }
 
         if (needs_redo)
