@@ -10,45 +10,58 @@
  * wait. Note : Currently assuming that concurrent writes are being done on same page.
  */
 void buffer_manager::buffer_pool::AcquireBufferPoolLock(std::unique_ptr<buffer_manager_types::BPLock> &thread) {
+    std::unique_lock<std::mutex> queue_lock(lock_queue_mutex);
 
-    /* if writers waiting, buffer all types of threads.
-     * the lock used here is sacrifical_lock, meaning only for sake of cond_var.
-     */
-    if (writers_waiting > 0 || thread->lock_type == buffer_manager_types::WRITE_LOCK) {
-
-        lock_queue_mutex.lock();
+    // A writer is counted only while it is waiting in the queue.
+    // Make the decision and enqueue atomically with respect to other arrivals.
+    if (writers_waiting.load() > 0 || thread->lock_type == buffer_manager_types::WRITE_LOCK) {
         buffer_pool_lock.push_back(thread.get());
-        // Increament waiting writers
+
         if (thread->lock_type == buffer_manager_types::WRITE_LOCK) {
             writers_waiting.fetch_add(1);
         }
-        lock_queue_mutex.unlock();
 
-        std::unique_lock<std::mutex> sacrifical_lock(thread->mut);
-        thread->cond_var.wait(sacrifical_lock);
+        queue_lock.unlock();
+
+        std::unique_lock<std::mutex> request_lock(thread->mut);
+        thread->cond_var.wait(request_lock);
     }
 }
 
 /* Should be called by a writer, ignore readers, pops that writer and process reads after it until a writer is met at which point that
  * writer would be woken up and this exits */
 void buffer_manager::buffer_pool::UnlockBufferPoolLock() {
-    lock_queue_mutex.lock();
+    std::unique_lock<std::mutex> queue_lock(lock_queue_mutex);
+
+    if (buffer_pool_lock.empty()) {
+        throw std::logic_error("UnlockBufferPoolLock called with no queued writer");
+    }
+
+    auto *writer = buffer_pool_lock.front();
+    if (writer->lock_type != buffer_manager_types::WRITE_LOCK) {
+        throw std::logic_error("UnlockBufferPoolLock called while queue head is not a writer");
+    }
 
     buffer_pool_lock.pop_front();
     writers_waiting.fetch_sub(1);
 
-    auto front = buffer_pool_lock.front();
-    while (front->lock_type != buffer_manager_types::WRITE_LOCK) {
-        front->cond_var.notify_one();
+    while (!buffer_pool_lock.empty() && buffer_pool_lock.front()->lock_type == buffer_manager_types::READ_LOCK) {
+        auto *reader = buffer_pool_lock.front();
         buffer_pool_lock.pop_front();
-        front = buffer_pool_lock.front();
+        reader->cond_var.notify_one();
     }
 
-    lock_queue_mutex.unlock();
-    // notify next writer
-    front->cond_var.notify_one();
+    // Wake the next writer only when it is at the head.
+    if (!buffer_pool_lock.empty()) {
+        auto *next = buffer_pool_lock.front();
+        if (next->lock_type == buffer_manager_types::WRITE_LOCK) {
+            writers_waiting.fetch_sub(1);
+            queue_lock.unlock();
+            next->cond_var.notify_one();
+            return;
+        }
+    }
 }
-
 /* void buffer_manager::buffer_pool::ProcessBufferPollLock() {
     std::lock_guard<std::mutex> queue_lock(lock_queue_mutex);
     if (buffer_pool_lock.empty()) {
