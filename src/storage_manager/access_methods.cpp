@@ -27,7 +27,6 @@ access_methods::Access_methods::heap_scan::scan(std::vector<size_t>             
         buff_pool.AcquireBufferPoolLock(lock);
         char                      *heap_page_data = buff_pool.page_access(curr_pid, diskoperator_types::HEAP_PAGE)->page_data;
         heap_page_types::HeapPage *heap_page      = reinterpret_cast<heap_page_types::HeapPage *>(heap_page_data);
-        buff_pool.UnlockBufferPoolLock(lock);
 
         if (heap_page == NULL) {
             buff_pool.un_pin(curr_pid, diskoperator_types::HEAP_PAGE);
@@ -255,6 +254,10 @@ access_methods::split_res access_methods::Access_methods::bptree_leaf_split(buff
 heap_page_types::RID access_methods::Access_methods::bptree_scan(buffer_manager::buffer_pool   &buff_pool,
                                                                  const heap_page_types::page_id curr_root_pid,
                                                                  const heap_page_types::page_id key) {
+
+    auto lock = std::make_unique<buffer_manager_types::BPLock>();
+    lock->lock_type = buffer_manager_types::READ_LOCK;
+    buff_pool.AcquireBufferPoolLock(lock);
 
     buffer_manager_types::Page *curr_raw_page = buff_pool.page_access(curr_root_pid, diskoperator_types::INDEX_PAGE);
     btree_page_types::Node     *curr_page     = reinterpret_cast<btree_page_types::Node *>(curr_raw_page->page_data);
