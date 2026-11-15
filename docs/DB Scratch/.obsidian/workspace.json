@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Concurrency & Transactions/Storage and Concurrency.md",
+                "file": "08-concurrency-and-workers.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Storage and Concurrency"
+              "title": "08-concurrency-and-workers"
             }
           }
         ]
@@ -83,8 +83,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300,
-    "collapsed": true
+    "width": 300
   },
   "right": {
     "id": "1fc72150076e2802",
@@ -192,10 +191,11 @@
   },
   "active": "1c41d3c75fc34a1b",
   "lastOpenFiles": [
+    "07-transactions-wal-recovery.md",
+    "Concurrency & Transactions/Storage and Concurrency.md",
     "README.md",
     "09-tui.md",
     "08-concurrency-and-workers.md",
-    "07-transactions-wal-recovery.md",
     "06-schema-and-catalog.md",
     "05-query-processing.md",
     "04-b-plus-tree.md",
@@ -204,7 +204,6 @@
     "01-storage-and-pages.md",
     "00-overview.md",
     "Concurrency & Transactions/Concurrency & WAL (Theory).md",
-    "Concurrency & Transactions/Storage and Concurrency.md",
     "Lock Management.md",
     "redo.md",
     "TODO.md",

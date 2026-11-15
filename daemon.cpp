@@ -152,9 +152,6 @@ int main() {
                 poll_table[fd] = poll_table[nfds - 1];
                 nfds--;
                 fd--;
-
-                /* Handle shared memory, buffer_pool */
-                buff_pool.ProcessBufferPollLock();
             }
         } else if (ready_fds < 0) {
             throw std::runtime_error("SOME ERROR IN MAIN LOOP");

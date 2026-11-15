@@ -43,8 +43,7 @@ std::vector<char> WAL::WAL::serialize_row(const access_methods_types::row_t &row
     return bytes;
 }
 
-WAL::WAL::WAL(buffer_manager::buffer_pool &buff_pool)
-    : buff_pool(buff_pool), LSN(0) {
+WAL::WAL::WAL(buffer_manager::buffer_pool &buff_pool) : buff_pool(buff_pool), LSN(0) {
     const std::string wal_path = "wal.bin";
     if (!std::filesystem::exists(wal_path))
         return;
@@ -73,13 +72,11 @@ WAL::WAL::WAL(buffer_manager::buffer_pool &buff_pool)
 
 void WAL::WAL::CommitTransaction(const heap_page_types::RID &rid, const access_methods_types::row_t &row) {
     std::lock_guard<std::mutex> wal_guard(wal_mutex);
-    const std::vector<char> row_bytes = serialize_row(row);
+    const std::vector<char>     row_bytes = serialize_row(row);
 
-    if (rid.slot.slot_size < 0 ||
-        row_bytes.size() != static_cast<std::size_t>(rid.slot.slot_size))
+    if (rid.slot.slot_size < 0 || row_bytes.size() != static_cast<std::size_t>(rid.slot.slot_size))
         throw std::runtime_error("Serialized WAL row size does not match slot size");
-    if (static_cast<std::size_t>(rid.slot.slot_offset) + row_bytes.size() >
-        static_cast<std::size_t>(heap_page_types::HEAP_PAYLOAD_SIZE))
+    if (static_cast<std::size_t>(rid.slot.slot_offset) + row_bytes.size() > static_cast<std::size_t>(heap_page_types::HEAP_PAYLOAD_SIZE))
         throw std::runtime_error("WAL row exceeds heap page payload");
 
     const std::uint64_t next_lsn = LSN + 1;
@@ -95,53 +92,49 @@ void WAL::WAL::CommitTransaction(const heap_page_types::RID &rid, const access_m
     buff_pool.dp_write_to_wal(record, row_bytes.data());
     LSN = next_lsn;
 
-    auto lock = std::make_unique<buffer_manager_types::BPLock>();
+    auto lock       = std::make_unique<buffer_manager_types::BPLock>();
     lock->lock_type = buffer_manager_types::WRITE_LOCK;
     buff_pool.AcquireBufferPoolLock(lock);
-    buffer_manager_types::Page *page =
-        buff_pool.page_access(rid.pid, diskoperator_types::HEAP_PAGE);
+    buffer_manager_types::Page *page = buff_pool.page_access(rid.pid, diskoperator_types::HEAP_PAGE);
     try {
-        auto *heap_page = reinterpret_cast<heap_page_types::HeapPage *>(page->page_data);
+        auto *heap_page            = reinterpret_cast<heap_page_types::HeapPage *>(page->page_data);
         heap_page->page_header.lsn = static_cast<std::uint16_t>(next_lsn);
         buff_pool.dp_write_page(page, diskoperator_types::HEAP_PAGE);
         page->dirty_bit = false;
         buff_pool.un_pin(rid.pid, diskoperator_types::HEAP_PAGE);
-        buff_pool.UnlockBufferPoolLock(lock);
+        buff_pool.UnlockBufferPoolLock();
     } catch (...) {
         buff_pool.un_pin(rid.pid, diskoperator_types::HEAP_PAGE);
-        buff_pool.UnlockBufferPoolLock(lock);
+        buff_pool.UnlockBufferPoolLock();
         throw;
     }
 }
 
-void WAL::WAL::apply_redo(const heap_page_types::RID *rid, const char *row_bytes,
-                          std::uint64_t record_lsn) {
-    auto lock = std::make_unique<buffer_manager_types::BPLock>();
+void WAL::WAL::apply_redo(const heap_page_types::RID *rid, const char *row_bytes, std::uint64_t record_lsn) {
+    auto lock       = std::make_unique<buffer_manager_types::BPLock>();
     lock->lock_type = buffer_manager_types::WRITE_LOCK;
     buff_pool.AcquireBufferPoolLock(lock);
-    buffer_manager_types::Page *page =
-        buff_pool.page_access(rid->pid, diskoperator_types::HEAP_PAGE);
+    buffer_manager_types::Page *page = buff_pool.page_access(rid->pid, diskoperator_types::HEAP_PAGE);
     try {
         auto *heap_page = reinterpret_cast<heap_page_types::HeapPage *>(page->page_data);
         if (rid->slot.slot_size > 0) {
-            std::memcpy(heap_page->data + rid->slot.slot_offset, row_bytes,
-                        rid->slot.slot_size);
+            std::memcpy(heap_page->data + rid->slot.slot_offset, row_bytes, rid->slot.slot_size);
         }
         heap_page->page_header.lsn = static_cast<std::uint16_t>(record_lsn);
         buff_pool.dp_write_page(page, diskoperator_types::HEAP_PAGE);
         page->dirty_bit = false;
         buff_pool.un_pin(rid->pid, diskoperator_types::HEAP_PAGE);
-        buff_pool.UnlockBufferPoolLock(lock);
+        buff_pool.UnlockBufferPoolLock();
     } catch (...) {
         buff_pool.un_pin(rid->pid, diskoperator_types::HEAP_PAGE);
-        buff_pool.UnlockBufferPoolLock(lock);
+        buff_pool.UnlockBufferPoolLock();
         throw;
     }
 }
 
 void WAL::WAL::ReplayTransaction() {
     std::lock_guard<std::mutex> wal_guard(wal_mutex);
-    std::ifstream wal_file("wal.bin", std::ios::binary | std::ios::ate);
+    std::ifstream               wal_file("wal.bin", std::ios::binary | std::ios::ate);
     if (!wal_file.is_open())
         throw std::runtime_error("ERROR IN OPENING WAL FILE");
 
@@ -153,14 +146,12 @@ void WAL::WAL::ReplayTransaction() {
     wal_file.seekg(0, std::ios::beg);
     std::uint64_t last_entry_offset = 0;
     wal_file.read(reinterpret_cast<char *>(&last_entry_offset), sizeof(last_entry_offset));
-    if (!wal_file.good() || last_entry_offset < WAL_HEADER_SIZE ||
-        last_entry_offset >= file_size)
+    if (!wal_file.good() || last_entry_offset < WAL_HEADER_SIZE || last_entry_offset >= file_size)
         return;
 
     std::uint64_t offset = WAL_HEADER_SIZE;
     while (offset <= last_entry_offset) {
-        if (offset > file_size ||
-            sizeof(wal_types::WAL_entry) > file_size - offset)
+        if (offset > file_size || sizeof(wal_types::WAL_entry) > file_size - offset)
             break;
 
         wal_file.clear();
@@ -171,8 +162,7 @@ void WAL::WAL::ReplayTransaction() {
             break;
 
         const std::uint64_t payload_offset = offset + sizeof(record);
-        if (record.row_size > file_size - payload_offset ||
-            record.rid.slot.slot_size < 0 ||
+        if (record.row_size > file_size - payload_offset || record.rid.slot.slot_size < 0 ||
             record.row_size != static_cast<std::uint32_t>(record.rid.slot.slot_size) ||
             record.lsn > std::numeric_limits<std::uint16_t>::max() ||
             static_cast<std::size_t>(record.rid.slot.slot_offset) + record.row_size >
@@ -188,16 +178,14 @@ void WAL::WAL::ReplayTransaction() {
 
         bool needs_redo = false;
         {
-            auto lock = std::make_unique<buffer_manager_types::BPLock>();
+            auto lock       = std::make_unique<buffer_manager_types::BPLock>();
             lock->lock_type = buffer_manager_types::READ_LOCK;
             buff_pool.AcquireBufferPoolLock(lock);
-            buffer_manager_types::Page *page =
-                buff_pool.page_access(record.rid.pid, diskoperator_types::HEAP_PAGE);
-            const auto *heap_page =
-                reinterpret_cast<const heap_page_types::HeapPage *>(page->page_data);
-            needs_redo = heap_page->page_header.lsn < record.lsn;
+            buffer_manager_types::Page *page      = buff_pool.page_access(record.rid.pid, diskoperator_types::HEAP_PAGE);
+            const auto                 *heap_page = reinterpret_cast<const heap_page_types::HeapPage *>(page->page_data);
+            needs_redo                            = heap_page->page_header.lsn < record.lsn;
             buff_pool.un_pin(record.rid.pid, diskoperator_types::HEAP_PAGE);
-            buff_pool.UnlockBufferPoolLock(lock);
+            buff_pool.UnlockBufferPoolLock();
         }
 
         if (needs_redo)

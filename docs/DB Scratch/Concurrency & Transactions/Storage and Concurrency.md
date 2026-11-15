@@ -52,6 +52,8 @@ Few Changes,
 - Basically write is the point where data is going to change, hence reads after that should wait for it.
 - When a writer arrives, it is buffered, when that write calls unlock only then it is removed from the buffer and writer_waiting is decremented. 
 
+***This whole thing only reduces read contention and not write as writes still buffer, could have just let read pass critical section without lock but os wouldn't provide ordereing***.
+
 Samples of sched_switch event do not have callchains.
            time    cpu  task name                       wait time  sch delay   run time
                         tid/pid                          (msec)     (msec)     (msec)

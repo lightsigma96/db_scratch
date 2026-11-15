@@ -12,20 +12,19 @@
 void buffer_manager::buffer_pool::AcquireBufferPoolLock(std::unique_ptr<buffer_manager_types::BPLock> &thread) {
     std::unique_lock<std::mutex> queue_lock(lock_queue_mutex);
 
-    // A writer is counted only while it is waiting in the queue.
-    // Make the decision and enqueue atomically with respect to other arrivals.
-    if (writers_waiting.load() > 0 || thread->lock_type == buffer_manager_types::WRITE_LOCK) {
-        buffer_pool_lock.push_back(thread.get());
-
-        if (thread->lock_type == buffer_manager_types::WRITE_LOCK) {
-            writers_waiting.fetch_add(1);
-        }
-
+    buffer_pool_lock.push_back(thread.get());
+    // if a writer is waiting already, buffer any type
+    if (writers_waiting.load() > 0) {
         queue_lock.unlock();
-
         std::unique_lock<std::mutex> request_lock(thread->mut);
         thread->cond_var.wait(request_lock);
     }
+    // if a writer is not waiting, then reads bypass and writers are buffered but not slept
+    else if (thread->lock_type == buffer_manager_types::WRITE_LOCK) {
+        writers_waiting.fetch_add(1);
+    }
+    buffer_pool_lock.pop_front();
+    queue_lock.unlock();
 }
 
 /* Should be called by a writer, ignore readers, pops that writer and process reads after it until a writer is met at which point that
