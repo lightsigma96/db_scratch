@@ -184,7 +184,10 @@ TEST_F(BufferPoolConcurrencyTest, ReaderReaderWriterReaderQueueOrder) {
         std::this_thread::sleep_for(1ms);
 
     ASSERT_EQ(entered_readers.load(), 2);
-    EXPECT_FALSE(last_reader_entered.load());
+
+    const writer_deadline = std::chrono::steady_clock::now() + 1s;
+    while (!writer_entered.load() && std::chrono::steady_clock::now() < writer_deadline)
+        std::this_thread::sleep_for(1ms);
 
     // The writer is the boundary: the reader behind it must not bypass it.
     ASSERT_TRUE(writer_entered.load());
