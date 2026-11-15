@@ -65,7 +65,6 @@ TEST_F(BufferPoolConcurrencyTest, ConcurrentPinnedAccessToOnePageIsConsistent) {
                 if (page && page->page_id == 5)
                     successful_accesses.fetch_add(1);
                 pool->un_pin(5, diskoperator_types::HEAP_PAGE);
-                return;
             }
         });
     }
@@ -73,9 +72,10 @@ TEST_F(BufferPoolConcurrencyTest, ConcurrentPinnedAccessToOnePageIsConsistent) {
         thread.join();
 
     EXPECT_EQ(successful_accesses.load(), thread_count * iterations);
-    auto olock       = std::make_unique<buffer_manager_types::BPLock>();
-    olock->lock_type = buffer_manager_types::WRITE_LOCK;
-    pool->AcquireBufferPoolLock(olock);
+
+    auto lock       = std::make_unique<buffer_manager_types::BPLock>();
+    lock->lock_type = buffer_manager_types::WRITE_LOCK;
+    pool->AcquireBufferPoolLock(lock);
     auto *page = pool->page_access(5, diskoperator_types::HEAP_PAGE);
     EXPECT_EQ(page->pin_count, 1);
     pool->un_pin(5, diskoperator_types::HEAP_PAGE);
@@ -83,25 +83,74 @@ TEST_F(BufferPoolConcurrencyTest, ConcurrentPinnedAccessToOnePageIsConsistent) {
     pool->UnlockBufferPoolLock();
 }
 
-/* TEST_F(BufferPoolConcurrencyTest, SingleLockContention) {
-    std::vector<std::thread> thread_pool;
-    constexpr int            thread_count = 100;
-    thread_pool.reserve(thread_count);
+/* A writer stays queued as the active writer until it explicitly unlocks. */
+TEST_F(BufferPoolConcurrencyTest, WriterBlocksLaterReadersAndWriters) {
+    auto first_writer       = std::make_unique<buffer_manager_types::BPLock>();
+    first_writer->lock_type = buffer_manager_types::WRITE_LOCK;
+    pool->AcquireBufferPoolLock(first_writer);
 
-    auto start = std::chrono::steady_clock::now();
-    for (int i = 0; i < thread_count; i++) {
-        thread_pool.emplace_back([this]() { BufferContentionFunc(); });
+    std::atomic<bool> reader_entered{false};
+    std::atomic<bool> second_writer_entered{false};
+
+    auto reader_lock = std::make_unique<buffer_manager_types::BPLock>();
+    reader_lock->lock_type = buffer_manager_types::READ_LOCK;
+    std::thread reader([&] {
+        pool->AcquireBufferPoolLock(reader_lock);
+        reader_entered.store(true);
+    });
+
+    auto second_writer_lock = std::make_unique<buffer_manager_types::BPLock>();
+    second_writer_lock->lock_type = buffer_manager_types::WRITE_LOCK;
+    std::thread second_writer([&] {
+        pool->AcquireBufferPoolLock(second_writer_lock);
+        second_writer_entered.store(true);
+        pool->UnlockBufferPoolLock();
+    });
+
+    std::this_thread::sleep_for(50ms);
+    EXPECT_FALSE(reader_entered.load());
+    EXPECT_FALSE(second_writer_entered.load());
+
+    pool->UnlockBufferPoolLock();
+
+    const auto deadline = std::chrono::steady_clock::now() + 1s;
+    while ((!reader_entered.load() || !second_writer_entered.load()) &&
+           std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(1ms);
     }
 
-    for (auto &t : thread_pool) {
-        t.join();
+    EXPECT_TRUE(reader_entered.load());
+    EXPECT_FALSE(second_writer_entered.load());
+
+    reader.join();
+    EXPECT_FALSE(second_writer_entered.load());
+
+    // The writer is next after the reader batch has been released.
+    // Readers in this design do not call UnlockBufferPoolLock().
+    // The next writer is granted by the first writer's unlock after the batch.
+    second_writer.join();
+}
+
+/* Readers can proceed concurrently when there is no active or queued writer. */
+TEST_F(BufferPoolConcurrencyTest, ReadersBypassWhenNoWriterIsWaiting) {
+    constexpr int reader_count = 8;
+    std::atomic<int> entered{0};
+    std::vector<std::thread> readers;
+
+    for (int i = 0; i < reader_count; ++i) {
+        readers.emplace_back([&] {
+            auto lock       = std::make_unique<buffer_manager_types::BPLock>();
+            lock->lock_type = buffer_manager_types::READ_LOCK;
+            pool->AcquireBufferPoolLock(lock);
+            entered.fetch_add(1);
+        });
     }
 
-    auto end      = std::chrono::steady_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    for (auto &reader : readers)
+        reader.join();
 
-    std::cout << "Single Lock Contention: " << duration.count() << "us" << "\n";
-} */
+    EXPECT_EQ(entered.load(), reader_count);
+}
 
 TEST_F(BufferPoolConcurrencyTest, EvictionRemovesOldMappingAndReloadsPageFromDisk) {
     for (int pid = 0; pid < static_cast<int>(buffer_manager_types::buffer_size); ++pid) {
