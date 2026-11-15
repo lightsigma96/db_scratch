@@ -132,6 +132,70 @@ TEST_F(BufferPoolConcurrencyTest, WriterBlocksLaterReadersAndWriters) {
 }
 
 /* Readers can proceed concurrently when there is no active or queued writer. */
+TEST_F(BufferPoolConcurrencyTest, ReaderReaderWriterReaderQueueOrder) {
+    auto holder       = std::make_unique<buffer_manager_types::BPLock>();
+    holder->lock_type = buffer_manager_types::WRITE_LOCK;
+    pool->AcquireBufferPoolLock(holder);
+
+    std::atomic<int> entered_readers{0};
+    std::atomic<bool> writer_entered{false};
+    std::atomic<bool> last_reader_entered{false};
+
+    auto reader1_lock = std::make_unique<buffer_manager_types::BPLock>();
+    reader1_lock->lock_type = buffer_manager_types::READ_LOCK;
+    std::thread reader1([&] {
+        pool->AcquireBufferPoolLock(reader1_lock);
+        entered_readers.fetch_add(1);
+    });
+
+    auto reader2_lock = std::make_unique<buffer_manager_types::BPLock>();
+    reader2_lock->lock_type = buffer_manager_types::READ_LOCK;
+    std::thread reader2([&] {
+        pool->AcquireBufferPoolLock(reader2_lock);
+        entered_readers.fetch_add(1);
+    });
+
+    auto writer_lock = std::make_unique<buffer_manager_types::BPLock>();
+    writer_lock->lock_type = buffer_manager_types::WRITE_LOCK;
+    std::thread writer([&] {
+        pool->AcquireBufferPoolLock(writer_lock);
+        writer_entered.store(true);
+        pool->UnlockBufferPoolLock();
+    });
+
+    auto reader3_lock = std::make_unique<buffer_manager_types::BPLock>();
+    reader3_lock->lock_type = buffer_manager_types::READ_LOCK;
+    std::thread reader3([&] {
+        pool->AcquireBufferPoolLock(reader3_lock);
+        last_reader_entered.store(true);
+    });
+
+    // All four requests are queued behind the active writer.
+    std::this_thread::sleep_for(50ms);
+    EXPECT_EQ(entered_readers.load(), 0);
+    EXPECT_FALSE(writer_entered.load());
+    EXPECT_FALSE(last_reader_entered.load());
+
+    // Releasing the active writer grants the first consecutive readers.
+    pool->UnlockBufferPoolLock();
+
+    const auto deadline = std::chrono::steady_clock::now() + 1s;
+    while (entered_readers.load() < 2 && std::chrono::steady_clock::now() < deadline)
+        std::this_thread::sleep_for(1ms);
+
+    ASSERT_EQ(entered_readers.load(), 2);
+    EXPECT_FALSE(last_reader_entered.load());
+
+    // The writer is the boundary: the reader behind it must not bypass it.
+    ASSERT_TRUE(writer_entered.load());
+    EXPECT_FALSE(last_reader_entered.load());
+
+    reader1.join();
+    reader2.join();
+    reader3.join();
+    writer.join();
+}
+
 TEST_F(BufferPoolConcurrencyTest, ReadersBypassWhenNoWriterIsWaiting) {
     constexpr int reader_count = 8;
     std::atomic<int> entered{0};
