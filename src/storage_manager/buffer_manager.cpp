@@ -12,28 +12,35 @@
 void buffer_manager::buffer_pool::AcquireBufferPoolLock(std::unique_ptr<buffer_manager_types::BPLock> &thread) {
     std::unique_lock<std::mutex> queue_lock(lock_queue_mutex);
 
-    buffer_pool_lock.push_back(thread.get());
-    // if a writer is waiting already, buffer any type
-    if (writers_waiting.load() > 0) {
-        queue_lock.unlock();
-        std::unique_lock<std::mutex> request_lock(thread->mut);
-        thread->cond_var.wait(request_lock);
+    // Readers can pass while no writer is active or queued.
+    // A writer remains in the queue until UnlockBufferPoolLock().
+    if (thread->lock_type == buffer_manager_types::READ_LOCK && writers_waiting.load() == 0) {
+        return;
     }
-    // if a writer is not waiting, then reads bypass and writers are buffered but not slept
-    else if (thread->lock_type == buffer_manager_types::WRITE_LOCK) {
+
+    buffer_pool_lock.push_back(thread.get());
+
+    if (thread->lock_type == buffer_manager_types::WRITE_LOCK) {
         writers_waiting.fetch_add(1);
     }
-    buffer_pool_lock.pop_front();
+
+    // The first writer starts immediately; later requests wait behind it.
+    if (thread->lock_type == buffer_manager_types::WRITE_LOCK &&
+        buffer_pool_lock.front() == thread.get()) {
+        return;
+    }
+
     queue_lock.unlock();
+
+    std::unique_lock<std::mutex> request_lock(thread->mut);
+    thread->cond_var.wait(request_lock);
 }
 
-/* Should be called by a writer, ignore readers, pops that writer and process reads after it until a writer is met at which point that
- * writer would be woken up and this exits */
 void buffer_manager::buffer_pool::UnlockBufferPoolLock() {
     std::unique_lock<std::mutex> queue_lock(lock_queue_mutex);
 
     if (buffer_pool_lock.empty()) {
-        throw std::logic_error("UnlockBufferPoolLock called with no queued writer");
+        throw std::logic_error("UnlockBufferPoolLock called with no active writer");
     }
 
     auto *writer = buffer_pool_lock.front();
@@ -44,21 +51,22 @@ void buffer_manager::buffer_pool::UnlockBufferPoolLock() {
     buffer_pool_lock.pop_front();
     writers_waiting.fetch_sub(1);
 
-    while (!buffer_pool_lock.empty() && buffer_pool_lock.front()->lock_type == buffer_manager_types::READ_LOCK) {
+    // Release the consecutive readers after this writer.
+    while (!buffer_pool_lock.empty() &&
+           buffer_pool_lock.front()->lock_type == buffer_manager_types::READ_LOCK) {
         auto *reader = buffer_pool_lock.front();
         buffer_pool_lock.pop_front();
         reader->cond_var.notify_one();
     }
 
-    // Wake the next writer only when it is at the head.
-    if (!buffer_pool_lock.empty()) {
-        auto *next = buffer_pool_lock.front();
-        if (next->lock_type == buffer_manager_types::WRITE_LOCK) {
-            writers_waiting.fetch_sub(1);
-            queue_lock.unlock();
-            next->cond_var.notify_one();
-            return;
-        }
+    // Grant the next writer, if one is queued. It remains at the head
+    // until it calls UnlockBufferPoolLock().
+    if (!buffer_pool_lock.empty() &&
+        buffer_pool_lock.front()->lock_type == buffer_manager_types::WRITE_LOCK) {
+        auto *next_writer = buffer_pool_lock.front();
+        writers_waiting.fetch_sub(1);
+        queue_lock.unlock();
+        next_writer->cond_var.notify_one();
     }
 }
 /* void buffer_manager::buffer_pool::ProcessBufferPollLock() {
