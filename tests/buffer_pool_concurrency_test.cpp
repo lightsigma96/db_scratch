@@ -92,14 +92,14 @@ TEST_F(BufferPoolConcurrencyTest, WriterBlocksLaterReadersAndWriters) {
     std::atomic<bool> reader_entered{false};
     std::atomic<bool> second_writer_entered{false};
 
-    auto reader_lock = std::make_unique<buffer_manager_types::BPLock>();
+    auto reader_lock       = std::make_unique<buffer_manager_types::BPLock>();
     reader_lock->lock_type = buffer_manager_types::READ_LOCK;
     std::thread reader([&] {
         pool->AcquireBufferPoolLock(reader_lock);
         reader_entered.store(true);
     });
 
-    auto second_writer_lock = std::make_unique<buffer_manager_types::BPLock>();
+    auto second_writer_lock       = std::make_unique<buffer_manager_types::BPLock>();
     second_writer_lock->lock_type = buffer_manager_types::WRITE_LOCK;
     std::thread second_writer([&] {
         pool->AcquireBufferPoolLock(second_writer_lock);
@@ -114,8 +114,7 @@ TEST_F(BufferPoolConcurrencyTest, WriterBlocksLaterReadersAndWriters) {
     pool->UnlockBufferPoolLock();
 
     const auto deadline = std::chrono::steady_clock::now() + 1s;
-    while ((!reader_entered.load() || !second_writer_entered.load()) &&
-           std::chrono::steady_clock::now() < deadline) {
+    while ((!reader_entered.load() || !second_writer_entered.load()) && std::chrono::steady_clock::now() < deadline) {
         std::this_thread::sleep_for(1ms);
     }
 
@@ -137,25 +136,25 @@ TEST_F(BufferPoolConcurrencyTest, ReaderReaderWriterReaderQueueOrder) {
     holder->lock_type = buffer_manager_types::WRITE_LOCK;
     pool->AcquireBufferPoolLock(holder);
 
-    std::atomic<int> entered_readers{0};
+    std::atomic<int>  entered_readers{0};
     std::atomic<bool> writer_entered{false};
     std::atomic<bool> last_reader_entered{false};
 
-    auto reader1_lock = std::make_unique<buffer_manager_types::BPLock>();
+    auto reader1_lock       = std::make_unique<buffer_manager_types::BPLock>();
     reader1_lock->lock_type = buffer_manager_types::READ_LOCK;
     std::thread reader1([&] {
         pool->AcquireBufferPoolLock(reader1_lock);
         entered_readers.fetch_add(1);
     });
 
-    auto reader2_lock = std::make_unique<buffer_manager_types::BPLock>();
+    auto reader2_lock       = std::make_unique<buffer_manager_types::BPLock>();
     reader2_lock->lock_type = buffer_manager_types::READ_LOCK;
     std::thread reader2([&] {
         pool->AcquireBufferPoolLock(reader2_lock);
         entered_readers.fetch_add(1);
     });
 
-    auto writer_lock = std::make_unique<buffer_manager_types::BPLock>();
+    auto writer_lock       = std::make_unique<buffer_manager_types::BPLock>();
     writer_lock->lock_type = buffer_manager_types::WRITE_LOCK;
     std::thread writer([&] {
         pool->AcquireBufferPoolLock(writer_lock);
@@ -163,7 +162,7 @@ TEST_F(BufferPoolConcurrencyTest, ReaderReaderWriterReaderQueueOrder) {
         pool->UnlockBufferPoolLock();
     });
 
-    auto reader3_lock = std::make_unique<buffer_manager_types::BPLock>();
+    auto reader3_lock       = std::make_unique<buffer_manager_types::BPLock>();
     reader3_lock->lock_type = buffer_manager_types::READ_LOCK;
     std::thread reader3([&] {
         pool->AcquireBufferPoolLock(reader3_lock);
@@ -185,7 +184,7 @@ TEST_F(BufferPoolConcurrencyTest, ReaderReaderWriterReaderQueueOrder) {
 
     ASSERT_EQ(entered_readers.load(), 2);
 
-    const writer_deadline = std::chrono::steady_clock::now() + 1s;
+    const auto writer_deadline = std::chrono::steady_clock::now() + 1s;
     while (!writer_entered.load() && std::chrono::steady_clock::now() < writer_deadline)
         std::this_thread::sleep_for(1ms);
 
@@ -200,8 +199,8 @@ TEST_F(BufferPoolConcurrencyTest, ReaderReaderWriterReaderQueueOrder) {
 }
 
 TEST_F(BufferPoolConcurrencyTest, ReadersBypassWhenNoWriterIsWaiting) {
-    constexpr int reader_count = 8;
-    std::atomic<int> entered{0};
+    constexpr int            reader_count = 8;
+    std::atomic<int>         entered{0};
     std::vector<std::thread> readers;
 
     for (int i = 0; i < reader_count; ++i) {
@@ -249,5 +248,3 @@ TEST_F(BufferPoolConcurrencyTest, ThrowsWhenEveryBufferFrameIsPinned) {
 
     EXPECT_THROW(pool->page_access(static_cast<int>(buffer_manager_types::buffer_size), diskoperator_types::HEAP_PAGE), std::runtime_error);
 }
-
-
